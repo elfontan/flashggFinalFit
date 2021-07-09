@@ -12,7 +12,7 @@ from fittingTools import *
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class modelBuilder:
   # Constructor
-  def __init__(self,_name,_cat,_xvar,_data,_functionFamilies,_nBins,_blindingRegion,_minimizerMethod,verbose=False):
+  def __init__(self,_name,_cat,_xvar,_data,_functionFamilies,_nBins,_blindingRegion,_minimizerMethod,_minimizerTolerance,verbose=False):
     self.name = _name
     self.cat = _cat
     self.xvar = _xvar
@@ -22,6 +22,7 @@ class modelBuilder:
     self.blind = True
     self.blindingRegion = _blindingRegion
     self.minimizerMethod = _minimizerMethod
+    self.minimizerTolerance = _minimizerTolerance 
     # Containers to store model objects
     self.params = od()
     self.formulas = od()
@@ -30,8 +31,6 @@ class modelBuilder:
     self.envelopePdfs = od()
     self.DataHist = None
     self.minNLL = 1e10
-    self.bestfitPdfIndex = 0
-    self.bestfitSnapshot = None
     self.maxTries = 3
     # Prepare datahist to perform fit to
     self.xvar.setBins(self.nBins)
@@ -43,11 +42,32 @@ class modelBuilder:
     self.chi2 = None
     self.NLL = None
     self.FitResult = None
+    self.bestfitPdf = None
   
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # Function to save multipdf to output workspace
+  def save(self,wsout):
+    wsout.imp = getattr(wsout,'import')
+    wsout.imp(self.multipdf,ROOT.RooFit.RecycleConflictNodes())
+    wsout.imp(self.norm,ROOT.RooFit.RecycleConflictNodes())
+    # Create datahist
+    self.DataHistFinal = ROOT.RooDataHist("roohist_data_mass_%s"%self.cat,"data",ROOT.RooArgSet(self.xvar),self.data)
+    wsout.imp(self.DataHistFinal)
+ 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Function toggle blinding region on/off
   def setBlind(self,blind=True):
     self.blind = blind
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # Function to set N bins for xvar
+  def setNBins(self,nBins):
+    self.xvar.setBins(nBins)
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # Function to set normalisation of model
+  def buildNorm(self,normVal,_extension):
+    self.norm = ROOT.RooRealVar("CMS_hgg_%s%s_bkgshape_norm"%(self.cat,_extension),"nbkg",normVal,0,3*normVal)
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Function to build pdf
@@ -82,6 +102,9 @@ class modelBuilder:
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Function to get pdf normalisation: match with data in sidebands and extrapolate for pdf in signal region
   def getNorm(self,_pdf):
+    # Set FitPDF
+    self.FitPDF = _pdf
+
     # Using numpy
     nPdf_sb, nData_sb = [], []
     nPdf_tot = []
@@ -125,7 +148,7 @@ class modelBuilder:
     self.FitPDF = _pdf
 
     # Create initial vector of parameters and calculate initial Chi2
-    if _verbose: print "\n --> (%s) Initialising fit parameters"%_pdf.GetName()
+    if _verbose: print " --> (%s) Initialising fit parameters"%_pdf.GetName()
     x0 = self.extractX0()
     xbounds = self.extractXBounds()
 
@@ -140,8 +163,8 @@ class modelBuilder:
 
     # Run fit
     if _verbose: print " --> (%s) Running fit"%_pdf.GetName()
-    if _mode == 'NLL': self.FitResult = minimize(NLL,x0,args=self,bounds=xbounds,method=self.minimizerMethod)
-    else: self.FitResult = minimize(Chi2,x0,args=self,bounds=xbounds,method=self.minimizerMethod)
+    if _mode == 'NLL': self.FitResult = minimize(NLL,x0,args=self,bounds=xbounds,method=self.minimizerMethod,tol=self.minimizerTolerance,options={'maxiter':10000})
+    else: self.FitResult = minimize(Chi2,x0,args=self,bounds=xbounds,method=self.minimizerMethod,tol=self.minimizerTolerance,options={'maxiter':10000})
 
     # Add re-tries: randomize parameter set
 
@@ -187,26 +210,27 @@ class modelBuilder:
 
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  # TODO: envelope and goodness of fit calculations with new model
   # Function to return prob for fTest: asymptotic or using toys
   def getProbabilityFTest(self,dchi2,ndof):
     prob_asymptotic = ROOT.TMath.Prob(dchi2,ndof)
     return prob_asymptotic
     # TODO: option for extract pval from toys
 
+
   # Function to extract goodness-of-fit from pdf to data
-  def getGOF(self,_pdfInfo,_verbose=True):
+  def getGOF(self,_pdfInfo):
     
     # Convert NLL to chi2Get chi2 value from plotting (reweighted) data and pdf
     chi2 = 2*_pdfInfo['NLL']
     ndof = _pdfInfo['Ndof']
     pval = ROOT.TMath.Prob(chi2,ndof)
 
-    if _verbose:
-      print " --> Calculating GOF for pdf: %s"%_pdfInfo['name']
-      print "    * Number of degrees of freedom: %g"%ndof
-      print "    * Observed chi2 = %.6f"%chi2
-      print "    * GOF pval = %.6f"%pval
+    print "\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    print " --> Calculating g.o.f for pdf: %s"%_pdfInfo['name']
+    print "     * Number of degrees of freedom: %g"%ndof
+    print "     * Observed chi2 (2NLL) = %.6f"%chi2
+    print "     * g.o.f. pval = %.6f"%pval
+    print " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     
     return pval 
     # TODO: option to extract gof from toys
@@ -216,6 +240,11 @@ class modelBuilder:
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Function to perform fTest: save functions that pass to self.functions
   def fTest(self,_maxOrder=6,_pvalFTest=0.05):
+
+    print "\n #################################################################################################"
+    print " --> Performing F-test for category: %s"%self.cat
+    print "     * Max order: %g"%_maxOrder
+    print "     * p-val threshold: %.3f"%_pvalFTest
 
     # Loop over function families
     for ff in functionFamilies:
@@ -235,7 +264,7 @@ class modelBuilder:
         else:
           # Run fit and save info
           print "\n --------------------------------------------------------------------"
-          print " --> Running fit for bkg pdf: %s\n"%bkgPdf.GetName()
+          print " --> Running fit for bkg pdf: %s"%bkgPdf.GetName()
           NLL, fitStatus = self.runFit(bkgPdf,_mode='NLL',_verbose=True)
 
           # Add to pdfs container
@@ -263,37 +292,48 @@ class modelBuilder:
           else:
             prob = 0
 
-          # Add label to dict if order passes fTest
-          print "\n --> (%s, order=%g): Prob( chi2 > chi2(data) ) = %.10f"%(ff,order,prob)
-          print " --------------------------------------------------------------------"
-
           if prob < _pvalFTest: self.pdfs[(ff,order)]['ftest'] = True
           else: self.pdfs[(ff,order)]['ftest'] = False
-         
+
+          # Add label to dict if order passes fTest
+          print " --> (%s, order=%g): Prob( chi2 > chi2(data) ) = %.10f"%(ff,order,prob)
+          print " --> Does function pass F-test: %s"%self.pdfs[(ff,order)]['ftest']
+          print " --------------------------------------------------------------------"
+ 
           # Store vals and add one to order
           prevNLL = NLL
           prevOrder = order
           order += 1
 
+    print " #################################################################################################"
+
   
   # Function to loop over possible pdfs which pass the Ftest and implement goodness of fit criteria
   def goodnessOfFit(self,_gofCriteria=0.01):
+
+    print "\n #################################################################################################"
+    print " --> Applying goodness-of-fit criteria: %s"%self.cat
+    print "     * Minimum gof criteria: %.3f"%_gofCriteria
+
     # Loop over pdfs in model and select those passing fTest
     for k, v in self.pdfs.iteritems():
       if v['ftest']:
-        gof = self.getGOF(v,_verbose=True)
+        gof = self.getGOF(v)
         if gof > _gofCriteria:
-          print " --> Adding pdf to envelope: (%s,%s)\n"%(k[0],k[1])
+          print " --> Adding pdf to envelope: (%s,%s)"%(k[0],k[1])
           self.envelopePdfs[k] = v
         else:
-          print " --> Not adding pdf to envelope: (%s,%s)\n"%(k[0],k[1])
+          print " --> Not adding pdf to envelope: (%s,%s)"%(k[0],k[1])
+
+    print " #################################################################################################"
 
 
   # Function to build envelope of bkg functions using RooMultiPdf class
   def buildEnvelope(self,_extension=""):
+    print "\n --> Building RooMultiPdf from model.envelopePdfs"
     # Check if zero pdfs have satisfied fit criteria
     if len(self.envelopePdfs) == 0:
-      print " --> [ERROR] No bkg functions satisfy the fit criteria. Try to increase opt.pvalFTest or decrease opt.gofCriteria"
+      print " --> [ERROR] No bkg functions satisfy the fit criteria. Try to relax thresholds e.g. increase opt.pvalFTest or decrease opt.gofCriteria"
       sys.exit(1)
 
     # Create pdf index to label pdf in envelope
@@ -310,45 +350,55 @@ class modelBuilder:
 
   # Function to calculate the best-fit bkg model function and set at nominal function in envelope
   def getBestfit(self,verbose=True):
-    bfIndex = 0
+
+    print "\n #################################################################################################"
+    print " --> Extracting best-fit function in envelope: %s\n"%self.cat
+
+    # Extract params in envelope
+    aset = ROOT.RooArgSet()
+    envParams = self.multipdf.getParameters(aset)
+    envParams.remove(self.pdfIndex)
+    envParams.remove(self.xvar)
+
+    # Loop over pdfs in envelope
+    bestfitIndex = -1
     NLL_min = 1e10
-    snap, clean, aset = ROOT.RooArgSet(), ROOT.RooArgSet(), ROOT.RooArgSet()
-    params = self.multipdf.getParameters(aset)
-    params.remove(self.pdfIndex)
-    params.snapshot(clean)
-    params.snapshot(snap)
-    # Loop over functions in envelope
+
     for i in range(self.pdfIndex.numTypes()):
-      params.assignValueOnly(clean)
       self.pdfIndex.setIndex(i)
-      # Run fit
-      NLL, fitStatus = self.runFit(self.multipdf)
-      # Add penalty term for number of free parameters in model
-      NLL += self.multipdf.getCorrection()
+      # Penalty term corrections:
+      penalty = self.multipdf.getCorrection()
 
-      if verbose:
-        print "  --> Function: %s"%self.multipdf.getCurrentPdf().GetName()
-        print "    * Penalty term: %g"%self.multipdf.getCorrection()
-        print "    * NLL + penalty = %.3f"%NLL
+      # Locate pdf in self.envelopePdfs
+      pdfName = self.multipdf.getCurrentPdf().GetName()
+      kfound = None
+      for k,v in self.envelopePdfs.iteritems():
+        if v['name'] == pdfName: kfound = k
 
-      # If NLL<NLL_min set bestfit
+      # Extract NLL
+      NLL, fitStatus = self.runFit(self.envelopePdfs[kfound]['pdf'],_mode='NLL')
+
+      # Add penality
+      NLL += penalty
+
+      print " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+      print "  --> pdf: %s"%self.multipdf.getCurrentPdf().GetName()
+      print "    * Penalty term: %g"%self.multipdf.getCorrection()
+      print "    * NLL + penalty = %.3f"%NLL
+      print " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+
+      # If NLL < min(NLL): set bestfit
       if NLL < NLL_min:
         NLL_min = NLL
-        snap.assignValueOnly(params)
-        self.bestfitPdfIndex = i
-
-    # Set pdfindex 
-    self.pdfIndex.setIndex(self.bestfitPdfIndex)
-    params.assignValueOnly(snap)
-    self.bestfitSnapshot = params
-
-    if verbose:
-      print " --> Best-fit function: %s (index=%g)"%(self.multipdf.getCurrentPdf().GetName(),self.pdfIndex.getIndex())
-
-  # Function to calculate norm of background function
-  #def getNorm(self,index=None):
-    # If index = None then use pre-calculated best-fit
-    
-  
-    
+        bestfitIndex = i
+        self.bestfitPdf = kfound
+        
+      # Set parameters of multipdf
+      envParams.assignValueOnly(self.FitParameters)
       
+    # Set bestfit
+    self.pdfIndex.setIndex(bestfitIndex)
+    
+    print " --> Best-fit function: %s (index=%g)"%(self.multipdf.getCurrentPdf().GetName(),self.pdfIndex.getIndex())  
+    print " #################################################################################################"

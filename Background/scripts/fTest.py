@@ -17,8 +17,8 @@ from modelBuilder_v2 import *
 from plottingTools import *
 
 def leave():
-  print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ HGG BACKGROUND FITTER (END) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ "
-  exit()
+  print "\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ HGG BACKGROUND FITTER (END) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ "
+  sys.exit(1)
 
 def get_options():
   parser = OptionParser()
@@ -34,9 +34,10 @@ def get_options():
   parser.add_option("--gofCriteria", dest='gofCriteria', default=0.01, type='float', help="goodness-of-fit threshold to include function in envelope")
   parser.add_option('--doPlots', dest='doPlots', default=False, action="store_true", help="Produce bkg fitting plots")
   parser.add_option('--nBins', dest='nBins', default=80, type='int', help="Number of bins for fit")
+  parser.add_option('--nBinsOutput', dest='nBinsOutput', default=320, type='int', help="Number of bins for ouptut WS")
   # Minimizer options
   parser.add_option('--minimizerMethod', dest='minimizerMethod', default='TNC', help="(Scipy) Minimizer method")
-  parser.add_option('--minimizerTolerance', dest='minimizerTolerance', default=1e-8, type='float', help="(Scipy) Minimizer tolerance")
+  parser.add_option('--minimizerTolerance', dest='minimizerTolerance', default=1e-7, type='float', help="(Scipy) Minimizer tolerance")
   return parser.parse_args()
 (opt,args) = get_options()
 
@@ -44,8 +45,7 @@ ROOT.gStyle.SetOptStat(0)
 ROOT.gROOT.SetBatch(True)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# SETUP: background fTest
-print " --> Running bkg fTest for %s"%opt.cat
+# SETUP
 f = ROOT.TFile(opt.inputWSFile,"read")
 inputWS = f.Get(inputWSName__)
 xvar = inputWS.var(opt.xvar)
@@ -62,61 +62,48 @@ blindingRegion = [float(opt.blindingRegion.split(",")[0]),float(opt.blindingRegi
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # CONSTRUCT MODEL
-model = modelBuilder("model_%s_%s"%(opt.cat,opt.year),opt.cat,xvarFit,data,functionFamilies,opt.nBins,blindingRegion,opt.minimizerMethod)
+model = modelBuilder("model_%s_%s"%(opt.cat,opt.year),opt.cat,xvarFit,data,functionFamilies,opt.nBins,blindingRegion,opt.minimizerMethod,opt.minimizerTolerance)
 if opt.fitFullRange: model.setBlind(False)
 
-model.fTest()
-model.goodnessOfFit()
+# Perform fTest to determine if higher orders provide sufficient improvement in fit
+model.fTest(_maxOrder = opt.maxOrder, _pvalFTest = opt.pvalFTest)
 
-plotPdfMap(model,model.pdfs,_outdir="/eos/home-j/jlangfor/www/CMS/postdoc/finalfits/Jul21/Background",_cat=opt.cat)
+# Require each function to pass some minimum GOF criteria
+model.goodnessOfFit(_gofCriteria = opt.gofCriteria)
 
-#pdf3_chi2 = model.buildPdf("Exponential",3,ext="_chi2")
-#model.runFit(pdf3_chi2,_verbose=True,_mode="chi2")
-#pdf5 = model.buildPdf("Exponential",5)
-#model.runFit_v2(pdf5,_verbose=True)
+for k in model.pdfs: print "%s --> Success: %s, Evals = %g, Iter = %g, NLL = %.3f"%(k,model.pdfs[k]['status']['success'],model.pdfs[k]['status']['nfev'],model.pdfs[k]['status']['nit'],model.pdfs[k]['NLL'])
 
-
-#pdf3_nll = model.buildPdf("Exponential",3,ext="_nll")
-#model.runFit(pdf3_nll,_verbose=True,_mode='NLL')
-
-#pdfMap = od()
-#pdfMap["exp3_chi2"] = od()
-#pdfMap["exp3_chi2"]['pdf'] = pdf3_chi2
-#pdfMap["exp3_chi2"]['norm'] = model.getNorm(pdf3_chi2)
-#pdfMap["exp3_nll"] = od()
-#pdfMap["exp3_nll"]['pdf'] = pdf3_nll
-#pdfMap["exp3_nll"]['norm'] = model.getNorm(pdf3_nll)
-
-#plotPdfMap(model,pdfMap,_outdir="/eos/home-j/jlangfor/www/CMS/postdoc/finalfits/Jul21/Background",_cat=opt.cat)
-
-
-
-sys.exit(1)
-
-# Do fTest
-model.fTest( _maxOrder = opt.maxOrder, _pvalFTest = opt.pvalFTest )
-
-# Apply goodness of fit critera: functions passing enter envelope
-model.goodnessOfFit( _gofCriteria = opt.gofCriteria )
-
-# Build envelope, find best-fit function and calculate normalisation
+# Build envelope
 if opt.year == "merged": model.buildEnvelope(_extension="_%s"%sqrts__)
 else: model.buildEnvelope(_extension="_%s_%s"%(opt.year,sqrts__))
 
+# Find best-fit function and extract normalisation
+model.getBestfit()
+norm = model.getNorm( model.envelopePdfs[model.bestfitPdf]['pdf'])
+print "\n --> Model normalisation: %.2f"%norm
+if opt.year == "merged": model.buildNorm( norm, _extension="_%s"%sqrts__)
+else: model.buildNorm( norm, _extension="_%s_%s"%(opt.year,sqrts__)) 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# TODO: SAVE RESULTS TO FILE: see resFile in fTest.cpp
+# Plotting
+print "\n --> Plotting envelope"
+plotPdfMap(model,model.envelopePdfs,_outdir="/eos/home-j/jlangfor/www/CMS/postdoc/finalfits/Jul21/Background",_cat=opt.cat)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # SAVE: to output workspace
+
+# Set nBins for output
+model.setNBins(opt.nBinsOutput)
+
+# Create output file and save model contents
 foutDir = "%s/outdir_%s/fTest/output"%(bwd__,opt.ext)
 foutName = "%s/outdir_%s/fTest/output/CMS-HGG_multipdf_%s.root"%(bwd__,opt.ext,opt.cat)
 print "\n --> Saving output multipdf to file: %s"%foutName
 if not os.path.isdir(foutDir): os.system("mkdir %s"%foutDir)
 fout = ROOT.TFile(foutName,"RECREATE")
 outWS = ROOT.RooWorkspace(bkgWSName__,bkgWSName__)
-#fm.save(outWS)
-#outWS.Write()
-#fout.Close()
+model.save(outWS)
+outWS.Write()
+fout.Close()
 
-
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+leave()
