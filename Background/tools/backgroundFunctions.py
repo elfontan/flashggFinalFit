@@ -7,8 +7,8 @@ import ctypes
 functionFamilies = od()
 
 # Bernstein polynomial
-functionFamilies['Bernstein'] = od()
-functionFamilies['Bernstein']['name'] = ['Bernstein','bern']
+#functionFamilies['Bernstein'] = od()
+#functionFamilies['Bernstein']['name'] = ['Bernstein','bern']
 
 # Exponential
 functionFamilies['Exponential'] = od()

@@ -9,6 +9,7 @@ from optparse import OptionParser
 import glob
 import re
 from collections import OrderedDict as od
+from scipy import linalg
 
 from commonTools import *
 from commonObjects import *
@@ -37,7 +38,7 @@ def get_options():
   parser.add_option('--nBinsOutput', dest='nBinsOutput', default=320, type='int', help="Number of bins for ouptut WS")
   # Minimizer options
   parser.add_option('--minimizerMethod', dest='minimizerMethod', default='TNC', help="(Scipy) Minimizer method")
-  parser.add_option('--minimizerTolerance', dest='minimizerTolerance', default=1e-7, type='float', help="(Scipy) Minimizer tolerance")
+  parser.add_option('--minimizerTolerance', dest='minimizerTolerance', default=1e-8, type='float', help="(Scipy) Minimizer tolerance")
   return parser.parse_args()
 (opt,args) = get_options()
 
@@ -71,7 +72,14 @@ model.fTest(_maxOrder = opt.maxOrder, _pvalFTest = opt.pvalFTest)
 # Require each function to pass some minimum GOF criteria
 model.goodnessOfFit(_gofCriteria = opt.gofCriteria)
 
-for k in model.pdfs: print "%s --> Success: %s, Evals = %g, Iter = %g, NLL = %.3f"%(k,model.pdfs[k]['status']['success'],model.pdfs[k]['status']['nfev'],model.pdfs[k]['status']['nit'],model.pdfs[k]['NLL'])
+for k in model.pdfs: print "%s --> Success: %s, Evals = %g, NLL = %.3f"%(k,model.pdfs[k]['status']['success'],model.pdfs[k]['status']['nfev'],model.pdfs[k]['NLL'])
+
+pdf_null = model.pdfs[('Exponential',3)]
+pdf_test = model.pdfs[('Exponential',5)]
+
+model.getProbabilityFTestFromToys(pdf_null,pdf_test,_outDir="/eos/home-j/jlangfor/www/CMS/postdoc/finalfits/Jul21/Background/fTest_with_toys",nToys=10)
+
+sys.exit(1)
 
 # Build envelope
 if opt.year == "merged": model.buildEnvelope(_extension="_%s"%sqrts__)

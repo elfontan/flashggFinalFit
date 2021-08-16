@@ -3,11 +3,13 @@ import json
 import numpy as np
 from scipy.optimize import minimize
 import scipy.stats
+from scipy import linalg
 from collections import OrderedDict as od
 from array import array
 
 from backgroundFunctions import *
 from fittingTools import *
+from toyTools import *
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class modelBuilder:
@@ -79,6 +81,13 @@ class modelBuilder:
   # Function for setting N degrees of freedom
   def setNdof(self,_ndof): self.Ndof = _ndof
 
+  # Function for setting fit PDF
+  def setFitPdf(self,_pdf):
+    fv = _pdf.getVariables().Clone()
+    fv.remove(self.xvar)
+    self.FitParameters = ROOT.RooArgList(fv)
+    self.FitPDF = _pdf
+
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Function to extract param bounds
   def extractXBounds(self):
@@ -93,6 +102,36 @@ class modelBuilder:
     for i in range(len(self.FitParameters)): X0.append(self.FitParameters[i].getVal())
     return np.asarray(X0)
 
+  # Function to set fit param value vector
+  def setX0(self,x):
+    for i in range(len(self.FitParameters)): self.FitParameters[i].setVal(x[i])
+
+  # Function to randomize fit param value vector given the covariance and post-fit parameter values
+  # * use the square root method, akin to RooFitResult randomizePars() function
+  def randomX0(self,x0,cov):
+    L = np.zeros((len(x0),len(x0)))
+    for i in range(len(x0)):
+      # Diagonal term first
+      L[i][i] = cov[i][i]
+      for k in range(0,i):
+        tmp = L[k][i]
+        L[i][i] -= tmp*tmp
+      L[i][i] = math.sqrt(L[i][i])
+      # For off diagonal
+      for j in range(i+1,len(x0)):
+        L[i][j] = cov[i][j]
+        for k in range(0,i):
+          L[i][j] -= L[k][i]*L[k][j]
+        L[i][j] /= L[i][i]
+    # Take transpose of matrix
+    LT = L.T
+
+    # Create vector of unit Gaussian variables
+    g = np.random.normal(size=len(x0))
+
+    # Take dot product with L matrix and return randomized set of params
+    x = x0 + g.dot(LT)
+    return x
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Function to convert data to RooDataHist
@@ -103,7 +142,7 @@ class modelBuilder:
   # Function to get pdf normalisation: match with data in sidebands and extrapolate for pdf in signal region
   def getNorm(self,_pdf):
     # Set FitPDF
-    self.FitPDF = _pdf
+    self.setFitPdf(_pdf)
 
     # Using numpy
     nPdf_sb, nData_sb = [], []
@@ -141,11 +180,8 @@ class modelBuilder:
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   def runFit(self,_pdf,_mode='NLL',_verbose=False):
-    # Extract fit variables: remove xvar from fit params
-    fv = _pdf.getVariables().Clone()
-    fv.remove(self.xvar)
-    self.FitParameters = ROOT.RooArgList(fv)
-    self.FitPDF = _pdf
+    # Set fit variables
+    self.setFitPdf(_pdf)
 
     # Create initial vector of parameters and calculate initial Chi2
     if _verbose: print " --> (%s) Initialising fit parameters"%_pdf.GetName()
@@ -166,8 +202,6 @@ class modelBuilder:
     if _mode == 'NLL': self.FitResult = minimize(NLL,x0,args=self,bounds=xbounds,method=self.minimizerMethod,tol=self.minimizerTolerance,options={'maxiter':10000})
     else: self.FitResult = minimize(Chi2,x0,args=self,bounds=xbounds,method=self.minimizerMethod,tol=self.minimizerTolerance,options={'maxiter':10000})
 
-    # Add re-tries: randomize parameter set
-
     # Extract final fit result
     if _verbose: self.printFitParameters(title="Post-fit (%s)"%_pdf.GetName(),_mode=_mode)
     if _mode == 'NLL': 
@@ -176,6 +210,58 @@ class modelBuilder:
     else: 
       self.chi2 = self.getChi2()
       return self.chi2, self.FitResult
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  def getCovariance(self,_pdf,_mode='NLL',_stepsize=1e-4,_verbose=False):
+
+    # Find minimum of NLL surface: will also set the fit parameters+pdf
+    self.runFit(_pdf,_mode=_mode,_verbose=False)
+    x0 = self.extractX0()
+    arg0 = np.linspace(0,len(x0)-1,len(x0))
+    xbounds = self.extractXBounds()
+    if _mode == 'NLL': f_0 = self.getNLL()
+    elif _mode == "chi2": f_0 = 0.5*self.getChi2()
+    else: 
+      print " --> [ERROR] Fitting mode (%s) not supported. Use NLL or chi2"%_mode
+      sys.exit(1)
+
+    # Make matrix to store Hessian
+    H = np.zeros((len(x0),len(x0)))
+
+    # Make steps in parameter space
+    for i in range(len(x0)):
+      for j in range(len(x0)):
+        self.setX0(x0)
+        if i == j:
+          x_minus = x0-(arg0==i)*_stepsize
+          self.setX0(x_minus)
+          f_minus = self.getNLL() if _mode == 'NLL' else 0.5*self.getChi2()
+          x_plus = x0+(arg0==i)*_stepsize
+          self.setX0(x_plus)
+          f_plus = self.getNLL() if _mode == 'NLL' else 0.5*self.getChi2()
+          h = (f_minus-2*f_0+f_plus)/_stepsize**2
+          H[i][j] = h
+        else:
+          x_minus_minus = x0-((arg0==i)*_stepsize+(arg0==j)*_stepsize)
+          self.setX0(x_minus_minus)
+          f_minus_minus = self.getNLL() if _mode == 'NLL' else 0.5*self.getChi2()
+          x_plus_minus = x0+(arg0==i)*_stepsize-(arg0==j)*_stepsize
+          self.setX0(x_plus_minus)
+          f_plus_minus = self.getNLL() if _mode == 'NLL' else 0.5*self.getChi2()
+          x_minus_plus = x0-(arg0==i)*_stepsize+(arg0==j)*_stepsize
+          self.setX0(x_minus_plus)
+          f_minus_plus = self.getNLL() if _mode == 'NLL' else 0.5*self.getChi2()
+          x_plus_plus = x0+(arg0==i)*_stepsize+(arg0==j)*_stepsize
+          self.setX0(x_plus_plus)
+          f_plus_plus = self.getNLL() if _mode == 'NLL' else 0.5*self.getChi2()
+          h = (f_plus_plus-(f_minus_plus+f_plus_minus)+f_minus_minus)/(4*_stepsize**2)
+          H[i][j] = h
+
+    #Reset fit params to best-fit
+    self.setX0(x0)
+    
+    # Return inverse of Hessian matrix
+    return linalg.inv(H), x0
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Function to calculate NLL after setting fit parameters
@@ -189,7 +275,7 @@ class modelBuilder:
     x = self.extractX0()
     self.chi2 = Chi2(x,self,verbose=_verbose)
     return self.chi2
- 
+
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Function to print fit values
   def printFitParameters(self,title="Fit",_mode="NLL"):
@@ -214,8 +300,10 @@ class modelBuilder:
   def getProbabilityFTest(self,dchi2,ndof):
     prob_asymptotic = ROOT.TMath.Prob(dchi2,ndof)
     return prob_asymptotic
-    # TODO: option for extract pval from toys
 
+  def getProbabilityFTestFromToys(self,pdfInfoNull,pdfInfoTest,_mode='NLL',_outDir=".",nToys=1000,maxTries=3):
+    prob_toys = probabilityFTestFromToys(self,pdfInfoNull,pdfInfoTest,_mode=_mode,_outDir=_outDir,nToys=nToys,maxTries=maxTries)
+    return prob_toys 
 
   # Function to extract goodness-of-fit from pdf to data
   def getGOF(self,_pdfInfo):
@@ -289,8 +377,10 @@ class modelBuilder:
           if order > 1:
             dchi2 = 2.*(prevNLL-NLL) if prevNLL>NLL else 0.
             prob = self.getProbabilityFTest(dchi2,order-prevOrder)
+            #prob_toys = self.getProbabilityFTestFromToys(self.pdfs[(ff,order)],self.pdfs[(ff,prevOrder)],dchi2,order-prevOrder)
           else:
             prob = 0
+            #prob_toys = 0
 
           if prob < _pvalFTest: self.pdfs[(ff,order)]['ftest'] = True
           else: self.pdfs[(ff,order)]['ftest'] = False
