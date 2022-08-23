@@ -19,7 +19,8 @@ from signalTools import *
 from simultaneousFit import *
 from plottingTools import *
 
-MHLow, MHHigh = '120', '130'
+MHLow, MHHigh = '20', '40'
+#MHLow, MHHigh = '120', '130'
 
 def leave():
   print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ HGG SIGNAL FTEST (END) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ "
@@ -33,7 +34,8 @@ def get_options():
   parser.add_option("--procs", dest='procs', default='', help="Signal processes")
   parser.add_option("--nProcsToFTest", dest='nProcsToFTest', default=5, type='int',help="Number of signal processes to fTest (ordered by sum entries), others are set to nRV=1,nWV=1. Set to -1 to run over all")
   parser.add_option("--cat", dest='cat', default='', help="RECO category")
-  parser.add_option('--mass', dest='mass', default='125', help="Mass point to fit")
+  parser.add_option('--mass', dest='mass', default='30', help="Mass point to fit")
+  #parser.add_option('--mass', dest='mass', default='125', help="Mass point to fit")
   parser.add_option('--doPlots', dest='doPlots', default=False, action="store_true", help="Produce Signal fTest plots")
   parser.add_option('--nBins', dest='nBins', default=80, type='int', help="Number of bins for fit")
   parser.add_option('--threshold', dest='threshold', default=30, type='int', help="Threshold number of events")
@@ -51,12 +53,14 @@ if opt.doPlots:
   if not os.path.isdir("%s/outdir_%s/fTest/Plots"%(swd__,opt.ext)): os.system("mkdir %s/outdir_%s/fTest/Plots"%(swd__,opt.ext))
 
 # Load xvar to fit
+print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s/output*"%(opt.inputWSDir)
 nominalWSFileName = glob.glob("%s/output*"%(opt.inputWSDir))[0]
 f0 = ROOT.TFile(nominalWSFileName,"read")
 inputWS0 = f0.Get(inputWSName__)
 xvar = inputWS0.var(opt.xvar)
 xvarFit = xvar.Clone()
-dZ = inputWS0.var("dZ")
+dZ = inputWS0.var("vtxdz")
+#dZ = inputWS0.var("dZ")
 aset = ROOT.RooArgSet(xvar,dZ)
 f0.Close()
 
@@ -69,10 +73,17 @@ MH.setConstant(True)
 df = pd.DataFrame(columns=['proc','sumEntries','nRV','nWV'])
 procYields = od()
 for proc in opt.procs.split(","):
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc)
   WSFileName = glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc))[0]
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
   d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(proc.split("_")[0]),opt.mass,sqrts__,opt.cat)),aset)
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> reduce dataset: PROC ", procToData(proc.split("_")[0])
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> reduce dataset: MASS ", opt.mass
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> reduce dataset: ENERGY ", sqrts__
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> reduce dataset: CAT ", opt.cat
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> d: ", d
+
   df.loc[len(df)] = [proc,d.sumEntries(),1,1]
   inputWS.Delete()
   f.Close()
@@ -89,17 +100,25 @@ for pidx, proc in enumerate(procsToFTest):
   WSFileName = glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc))[0]
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> inputWS = ", WSFileName
+  if (inputWS): print "inputWS is TRUE! Ok let's proceed"
+  
   d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(proc.split("_")[0]),opt.mass,sqrts__,opt.cat)),aset)
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> aset: ", aset
   datasets_RV[opt.mass] = splitRVWV(d,aset,mode="RV")
   datasets_WV[opt.mass] = splitRVWV(d,aset,mode="WV")
 
   # Run fTest: RV
   # If numEntries below threshold then keep as n = 1
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> datasets_RV = ", datasets_RV[opt.mass].numEntries()
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> datasets_RW = ", datasets_WV[opt.mass].numEntries()
+
   if datasets_RV[opt.mass].numEntries() < opt.threshold: continue  
   else:
     ssfs = od()
     min_reduced_chi2, nGauss_opt = 999, 1
     for nGauss in range(1,opt.nGaussMax+1):
+      print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> NGauss = ", nGauss
       k = "nGauss_%g"%nGauss
       ssf = SimultaneousFit("fTest_RV_%g"%nGauss,proc,opt.cat,datasets_RV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=False)
       ssf.buildNGaussians(nGauss)

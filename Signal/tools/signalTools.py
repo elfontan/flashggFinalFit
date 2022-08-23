@@ -11,18 +11,30 @@ def reduceDataset(_d,_argset): return _d.reduce(_argset)
 
 def splitRVWV(_d,_argset,mode="RV"):
   # Split into RV/WV senario at dZ = 1cm
-  if mode == "RV": return _d.reduce(_argset,"abs(dZ)<=1.")
-  elif mode == "WV": return _d.reduce(_argset,"abs(dZ)>1.")
+  print "######### MODE: ", mode
+  #print "######### vtxdz =\t", vtxdz
+
+  if mode == "RV": 
+    print "######### d in RV: ", _d.reduce(_argset,"abs(vtxdz)<=1.")
+    return _d.reduce(_argset,"abs(vtxdz)<=1.")
+  elif mode == "WV": 
+    print "######### d in RW: ", _d.reduce(_argset,"abs(vtxdz)>1.")
+    return _d.reduce(_argset,"abs(vtxdz)<=1.")
+  #if mode == "RV": return _d.reduce(_argset,"abs(dZ)<=1.")
+  #elif mode == "WV": return _d.reduce(_argset,"abs(dZ)>1.")
   else:
     print " --> [ERROR] unrecognised mode (%s) in splitRVWV function"%mode
     return 0
 
-def beamspotReweigh(d,widthData,widthMC,_xvar,_dZ,_x='CMS_hgg_mass',preserveNorm=True):
+def beamspotReweigh(d,widthData,widthMC,_xvar,_vtxdz,_x='CMS_hgg_mass',preserveNorm=True):
+#def beamspotReweigh(d,widthData,widthMC,_xvar,_dZ,_x='CMS_hgg_mass',preserveNorm=True):
   isumw = d.sumEntries()
   drw = d.emptyClone()
   rw = ROOT.RooRealVar("weight","weight",-100000,1000000)
   for i in range(0,d.numEntries()):
-    x, dz = d.get(i).getRealValue(_x), d.get(i).getRealValue("dZ")
+    x, dz = d.get(i).getRealValue(_x), d.get(i).getRealValue("vtxdz")    
+    print "######### dz =\t", d.get(i).getRealValue("vtxdz")
+    #x, dz = d.get(i).getRealValue(_x), d.get(i).getRealValue("dZ")
     f = 1.
     if abs(dz) < 0.1: f = 1.
     else:
@@ -41,7 +53,9 @@ def beamspotReweigh(d,widthData,widthMC,_xvar,_dZ,_x='CMS_hgg_mass',preserveNorm
     fsumw = drw.sumEntries()
     drw_pn = d.emptyClone()
     for i in range(0,drw.numEntries()):
-      x, dz = drw.get(i).getRealValue(_x), drw.get(i).getRealValue("dZ")
+      print "######### dz =\t", drw.get(i).getRealValue("vtxdz")
+      x, dz = drw.get(i).getRealValue(_x), drw.get(i).getRealValue("vtxdz")
+      #x, dz = drw.get(i).getRealValue(_x), drw.get(i).getRealValue("dZ")
       f = isumw/fsumw if fsumw!=0. else 1.
       rw.setVal(f*drw.weight())
       _xvar.setVal(x)

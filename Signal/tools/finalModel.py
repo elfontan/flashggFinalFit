@@ -21,13 +21,15 @@ import HiggsAnalysis.CombinedLimit.PhysicsModel as models
 class dummy_options:
   def __init__(self):
     self.physModel = "HiggsAnalysis.CombinedLimit.PhysicsModel:floatingHiggsMass"
-    self.physOpt = ["higgsMassRange=90,250"]
+    self.physOpt = ["higgsMassRange=20,40"]
+    #self.physOpt = ["higgsMassRange=90,250"]
     self.bin = True
     self.fileName = "dummy.root"
     self.cexpr = False
     self.out = "wsdefault"
     self.verbose = 0
-    self.mass = 125
+    self.mass = 30
+    #self.mass = 125
     self.funcXSext = "dummy"
 
 # Functions to get XS/BR
@@ -59,8 +61,10 @@ def initialiseXSBR():
   for pm in productionModes: xsbr[pm] = []
   xsbr[decayMode] = []
   xsbr['constant'] = []
-  mh = 120.
-  while( mh < 130.05 ):
+  #mh = 120.
+  #while( mh < 130.05 ):
+  mh = 20.
+  while( mh < 40.05 ):
     for pm in productionModes: xsbr[pm].append(getXS(SM,MHVar,mh,pm))
     xsbr[decayMode].append(getBR(SM,MHVar,mh,decayMode))
     xsbr['constant'].append(1.)
@@ -135,7 +139,8 @@ class FinalModel:
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Functions to get XS, BR and EA splines for given proc/decay from map
   def buildXSBRSplines(self):
-    mh = np.linspace(120.,130.,101)
+    mh = np.linspace(20.,40.,101)
+    #mh = np.linspace(120.,130.,101)
     # XS
     fp = self.xsbrMap[self.proc]['factor'] if 'factor' in self.xsbrMap[self.proc] else 1.
     mp = self.xsbrMap[self.proc]['mode']
