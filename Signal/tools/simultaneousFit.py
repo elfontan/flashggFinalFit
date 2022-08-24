@@ -166,10 +166,10 @@ class SimultaneousFit:
     self.verbose = verbose
     # Prepare vars
     self.MH.setConstant(False)
-    self.MH.setVal(30)
-    self.MH.setBins(20)
-    self.dMH = ROOT.RooFormulaVar("dMH","dMH","@0-30.0",ROOT.RooArgList(self.MH)) 
-    self.xvar.setVal(30)
+    self.MH.setVal(35)
+    self.MH.setBins(10)
+    self.dMH = ROOT.RooFormulaVar("dMH","dMH","@0-35.0",ROOT.RooArgList(self.MH)) 
+    self.xvar.setVal(35)
     #self.MH.setVal(125)
     #self.MH.setBins(10)
     #self.dMH = ROOT.RooFormulaVar("dMH","dMH","@0-125.0",ROOT.RooArgList(self.MH)) 
@@ -290,12 +290,15 @@ class SimultaneousFit:
 
     # Loop over NGaussians
     for g in range(0,nGaussians):
+      print "@@@@@@@@@@@@@Building Gaussians", g
       # Define polynominal functions for mean and sigma (in MH)
       for f in ['dm','sigma']: 
-        print "@@@@@@@@@@@@@Building Gaussians"
 	k = "%s_g%g"%(f,g)
+        print "@@@ %s_g%g"%(f,g)
+
 	self.Varlists[k] = ROOT.RooArgList("%s_coeffs"%k)
 	# Create coeff for polynominal of order MHPolyOrder: y = a+bx+cx^2+...
+
 	for po in range(0,self.MHPolyOrder+1):
           # p0 value of sigma is function of g (creates gaussians of increasing width)
           if(f == "sigma")&(po==0): 
@@ -340,11 +343,13 @@ class SimultaneousFit:
     fv.remove(self.xvar)
     self.FitParameters = ROOT.RooArgList(fv)
 
-    print "@@@@@@@@Running fit"
     # Create initial vector of parameters and calculate initial Chi2
     if self.verbose: print "\n --> (%s) Initialising fit parameters"%self.name
     x0 = self.extractX0()
     xbounds = self.extractXBounds()
+    print "@@@ x0", x0
+    print "@@@ xbounds", xbounds
+
     self.Chi2 = self.getChi2()
     # Print parameter pre-fit values
     if self.verbose: self.printFitParameters(title="Pre-fit")
@@ -362,7 +367,6 @@ class SimultaneousFit:
   def buildSplines(self):
     # Loop over polynomials
     for k, poly in self.Polynomials.iteritems():
-      print "@@@@@@@@@@@@@Building Splines"
       _x, _y = [], []
       _mh = 100.
       while(_mh<180.1):

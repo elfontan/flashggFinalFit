@@ -19,7 +19,7 @@ from signalTools import *
 from simultaneousFit import *
 from plottingTools import *
 
-MHLow, MHHigh = '20', '40'
+MHLow, MHHigh = '5', '65'
 #MHLow, MHHigh = '120', '130'
 
 def leave():
@@ -34,7 +34,7 @@ def get_options():
   parser.add_option("--procs", dest='procs', default='', help="Signal processes")
   parser.add_option("--nProcsToFTest", dest='nProcsToFTest', default=5, type='int',help="Number of signal processes to fTest (ordered by sum entries), others are set to nRV=1,nWV=1. Set to -1 to run over all")
   parser.add_option("--cat", dest='cat', default='', help="RECO category")
-  parser.add_option('--mass', dest='mass', default='30', help="Mass point to fit")
+  parser.add_option('--mass', dest='mass', default='35', help="Mass point to fit")
   #parser.add_option('--mass', dest='mass', default='125', help="Mass point to fit")
   parser.add_option('--doPlots', dest='doPlots', default=False, action="store_true", help="Produce Signal fTest plots")
   parser.add_option('--nBins', dest='nBins', default=80, type='int', help="Number of bins for fit")
@@ -78,11 +78,12 @@ for proc in opt.procs.split(","):
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
   d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(proc.split("_")[0]),opt.mass,sqrts__,opt.cat)),aset)
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> reduce dataset: PROC ", procToData(proc.split("_")[0])
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> reduce dataset: MASS ", opt.mass
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> reduce dataset: ENERGY ", sqrts__
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> reduce dataset: CAT ", opt.cat
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> d: ", d
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> REDUCE DATASET"
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> PROC\t", procToData(proc.split("_")[0])
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> MASS\t", opt.mass
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> ENERGY\t", sqrts__
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> CAT\t", opt.cat
+  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> d:\t", d
 
   df.loc[len(df)] = [proc,d.sumEntries(),1,1]
   inputWS.Delete()
@@ -101,10 +102,9 @@ for pidx, proc in enumerate(procsToFTest):
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
   print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> inputWS = ", WSFileName
-  if (inputWS): print "inputWS is TRUE! Ok let's proceed"
   
   d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(proc.split("_")[0]),opt.mass,sqrts__,opt.cat)),aset)
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> aset: ", aset
+  #print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> aset: ", aset
   datasets_RV[opt.mass] = splitRVWV(d,aset,mode="RV")
   datasets_WV[opt.mass] = splitRVWV(d,aset,mode="WV")
 
@@ -120,11 +120,13 @@ for pidx, proc in enumerate(procsToFTest):
     for nGauss in range(1,opt.nGaussMax+1):
       print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> NGauss = ", nGauss
       k = "nGauss_%g"%nGauss
-      ssf = SimultaneousFit("fTest_RV_%g"%nGauss,proc,opt.cat,datasets_RV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=False)
+      #ssf = SimultaneousFit("fTest_RV_%g"%nGauss,proc,opt.cat,datasets_RV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=False)
+      ssf = SimultaneousFit("fTest_RV_%g"%nGauss,proc,opt.cat,datasets_RV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=True)
       ssf.buildNGaussians(nGauss)
       ssf.runFit()
       ssf.buildSplines()
       if ssf.Ndof >= 1: 
+        print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> If with ssf.Ndof = ", ssf.Ndof
 	ssfs[k] = ssf
 	if ssfs[k].getReducedChi2() < min_reduced_chi2: 
 	  min_reduced_chi2 = ssfs[k].getReducedChi2()

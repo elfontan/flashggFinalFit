@@ -28,7 +28,7 @@ class dummy_options:
     self.cexpr = False
     self.out = "wsdefault"
     self.verbose = 0
-    self.mass = 30
+    self.mass = 35
     #self.mass = 125
     self.funcXSext = "dummy"
 

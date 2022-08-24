@@ -32,10 +32,10 @@ ws = fin.Get("tagsDumper/cms_hgg_13TeV")
 xvar = ws.var("CMS_hgg_mass") # Could also build this manually rather than extracting from workspace (RooRealVar)
 
 pm,d = signalFromFileName(f)
-MHLow = '20'
-MHHigh = '40'
-massPoints = '30'
-nBins = 320 #nBins for fit
+MHLow = '5'
+MHHigh = '65'
+massPoints = '35'
+nBins = 240 #nBins for fit
 #MHLow = '120'
 #MHHigh = '130'
 #massPoints = '125'
@@ -51,7 +51,7 @@ MH = ROOT.RooRealVar("MH","m_{H}", int(MHLow), int(MHHigh))
 
 # Create dict to store datasets: key=mass point, value = ROOT.RooDataSet()
 datasets = od()
-datasets['30'] = ws.data("%s_30_13TeV_%s"%(pm,opt.cat))
+datasets['30'] = ws.data("%s_35_13TeV_%s"%(pm,opt.cat))
 #datasets['125'] = ws.data("%s_125_13TeV_%s"%(pm,opt.cat))
 
 # Build ssf object + pdfs

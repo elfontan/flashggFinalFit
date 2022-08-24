@@ -20,8 +20,8 @@ from finalModel import *
 from plottingTools import *
 
 # Constant
-MHLow, MHHigh = '20', '40'
-MHNominal = '30'
+MHLow, MHHigh = '5', '65'
+MHNominal = '35'
 #MHLow, MHHigh = '120', '130'
 #MHNominal = '125'
 
@@ -38,8 +38,8 @@ def get_options():
   parser.add_option("--cat", dest='cat', default='', help="RECO category")
   parser.add_option("--year", dest='year', default='2016', help="Year")
   parser.add_option("--analysis", dest='analysis', default='STXS', help="Analysis handle: used to specify replacement map and XS*BR normalisations")
-  #parser.add_option('--massPoints', dest='massPoints', default='5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70', help="Mass points to fit")
-  parser.add_option('--massPoints', dest='massPoints', default='20, 30, 40', help="Mass points to fit")
+  parser.add_option('--massPoints', dest='massPoints', default='5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65', help="Mass points to fit")
+  #parser.add_option('--massPoints', dest='massPoints', default='20, 30, 40', help="Mass points to fit")
   #parser.add_option('--massPoints', dest='massPoints', default='120,125,130', help="Mass points to fit")
   parser.add_option('--doEffAccFromJson', dest='doEffAccFromJson', default=False, action="store_true", help="Extract eff x acc from json (produced by getEffAcc). Else, extract from nominal weights in flashgg workspaces")
   parser.add_option('--skipBeamspotReweigh', dest='skipBeamspotReweigh', default=False, action="store_true", help="Skip beamspot reweigh to match beamspot distribution in data")

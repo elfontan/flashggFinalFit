@@ -19,7 +19,7 @@ def splitRVWV(_d,_argset,mode="RV"):
     return _d.reduce(_argset,"abs(vtxdz)<=1.")
   elif mode == "WV": 
     print "######### d in RW: ", _d.reduce(_argset,"abs(vtxdz)>1.")
-    return _d.reduce(_argset,"abs(vtxdz)<=1.")
+    return _d.reduce(_argset,"abs(vtxdz)>1.")
   #if mode == "RV": return _d.reduce(_argset,"abs(dZ)<=1.")
   #elif mode == "WV": return _d.reduce(_argset,"abs(dZ)>1.")
   else:

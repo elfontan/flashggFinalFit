@@ -15,8 +15,8 @@ signalScriptCfg = {
     #'analysis':'STXS', # To specify which replacement dataset mapping (defined in ./tools/replacementMap.py</pre>)
     'year':'%s'%_year, # Use 'combined' if merging all years: not recommended
     #'massPoints': '120, 125, 130',
-    'massPoints': '20, 30, 40',
-    #'massPoints':'5,10,15,20,25,30,35,40,45,50,55,60,65,70',
+    #'massPoints': '20, 30, 40',
+    'massPoints':'5,10,15,20,25,30,35,40,45,50,55,60,65',
     
     # Additional option for the fit: --useDCB (by default it is false)
     # Use DCB + 1 Gaussian as pdf instead of N Gaussians
