@@ -20,7 +20,7 @@ from finalModel import *
 from plottingTools import *
 
 # Constant
-MHLow, MHHigh = '5', '65'
+MHLow, MHHigh = '25', '45'
 MHNominal = '35'
 #MHLow, MHHigh = '120', '130'
 #MHNominal = '125'
@@ -161,7 +161,9 @@ for mp in opt.massPoints.split(","):
   d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(procRVFit.split("_")[0]),mp,sqrts__,catRVFit)),aset)
   nominalDatasets[mp] = d.Clone()
   if opt.skipVertexScenarioSplit: datasetRVForFit[mp] = d
-  else: datasetRVForFit[mp] = splitRVWV(d,aset,mode="RV")
+  else: 
+    datasetRVForFit[mp] = splitRVWV(d,aset,mode="RV")
+    print "@@@@@@@@ SIGNAL FIT: datasetRVForFit[mp] created: ", datasetRVForFit[mp]
   inputWS.Delete()
   f.Close()
 

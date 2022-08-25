@@ -10,24 +10,20 @@ from commonObjects import *
 def reduceDataset(_d,_argset): return _d.reduce(_argset)
 
 def splitRVWV(_d,_argset,mode="RV"):
-  # Split into RV/WV senario at dZ = 1cm
-  print "######### MODE: ", mode
-  #print "######### vtxdz =\t", vtxdz
-
+  # Split into RV/WV scenario at dZ = 1cm
+  # Note that for the lowmass analysis the splitting is not taken into account
   if mode == "RV": 
-    print "######### d in RV: ", _d.reduce(_argset,"abs(vtxdz)<=1.")
-    return _d.reduce(_argset,"abs(vtxdz)<=1.")
+    return _d.reduce(_argset,"abs(vtxdz)<=100.")
   elif mode == "WV": 
-    print "######### d in RW: ", _d.reduce(_argset,"abs(vtxdz)>1.")
-    return _d.reduce(_argset,"abs(vtxdz)>1.")
+    return _d.reduce(_argset,"abs(vtxdz)>100.")
   #if mode == "RV": return _d.reduce(_argset,"abs(dZ)<=1.")
   #elif mode == "WV": return _d.reduce(_argset,"abs(dZ)>1.")
   else:
     print " --> [ERROR] unrecognised mode (%s) in splitRVWV function"%mode
     return 0
 
-def beamspotReweigh(d,widthData,widthMC,_xvar,_vtxdz,_x='CMS_hgg_mass',preserveNorm=True):
-#def beamspotReweigh(d,widthData,widthMC,_xvar,_dZ,_x='CMS_hgg_mass',preserveNorm=True):
+#def beamspotReweigh(d,widthData,widthMC,_xvar,_vtxdz,_x='CMS_hgg_mass',preserveNorm=True):
+def beamspotReweigh(d,widthData,widthMC,_xvar,_dZ,_x='CMS_hgg_mass',preserveNorm=True):
   isumw = d.sumEntries()
   drw = d.emptyClone()
   rw = ROOT.RooRealVar("weight","weight",-100000,1000000)

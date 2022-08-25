@@ -19,7 +19,8 @@ from signalTools import *
 from simultaneousFit import *
 from plottingTools import *
 
-MHLow, MHHigh = '5', '65'
+MHLow, MHHigh = '30', '40'
+#MHLow, MHHigh = '5', '65'
 #MHLow, MHHigh = '120', '130'
 
 def leave():
@@ -53,7 +54,7 @@ if opt.doPlots:
   if not os.path.isdir("%s/outdir_%s/fTest/Plots"%(swd__,opt.ext)): os.system("mkdir %s/outdir_%s/fTest/Plots"%(swd__,opt.ext))
 
 # Load xvar to fit
-print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s/output*"%(opt.inputWSDir)
+print "INPUT WS DIRECTORY: %s/output*"%(opt.inputWSDir)
 nominalWSFileName = glob.glob("%s/output*"%(opt.inputWSDir))[0]
 f0 = ROOT.TFile(nominalWSFileName,"read")
 inputWS0 = f0.Get(inputWSName__)
@@ -73,17 +74,20 @@ MH.setConstant(True)
 df = pd.DataFrame(columns=['proc','sumEntries','nRV','nWV'])
 procYields = od()
 for proc in opt.procs.split(","):
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc)
+  print "FILE NAME:  %s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc)
   WSFileName = glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc))[0]
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
   d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(proc.split("_")[0]),opt.mass,sqrts__,opt.cat)),aset)
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> REDUCE DATASET"
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> PROC\t", procToData(proc.split("_")[0])
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> MASS\t", opt.mass
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> ENERGY\t", sqrts__
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> CAT\t", opt.cat
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> d:\t", d
+  print "-----------------------------------"
+  print "[fTest] Reduce dataset"
+  print "-----------------------------------"
+  print "PROC\t\t", procToData(proc.split("_")[0])
+  print "MASS\t\t", opt.mass
+  print "ENERGY\t\t", sqrts__
+  print "CAT\t\t", opt.cat
+  print "RooDataSet:\t", d
+  print "-----------------------------------"
 
   df.loc[len(df)] = [proc,d.sumEntries(),1,1]
   inputWS.Delete()
@@ -101,32 +105,32 @@ for pidx, proc in enumerate(procsToFTest):
   WSFileName = glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc))[0]
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> inputWS = ", WSFileName
+  print "-----------------------------------"
+  print "[fTest] Input WS: ", WSFileName
   
   d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(proc.split("_")[0]),opt.mass,sqrts__,opt.cat)),aset)
-  #print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> aset: ", aset
   datasets_RV[opt.mass] = splitRVWV(d,aset,mode="RV")
   datasets_WV[opt.mass] = splitRVWV(d,aset,mode="WV")
 
   # Run fTest: RV
   # If numEntries below threshold then keep as n = 1
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> datasets_RV = ", datasets_RV[opt.mass].numEntries()
-  print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> datasets_RW = ", datasets_WV[opt.mass].numEntries()
+  print "Dataset RV nentries = ", datasets_RV[opt.mass].numEntries()
+  print "Dataset WV nentries = ", datasets_WV[opt.mass].numEntries(), "  (supposed to be zero for the lowmass analysis)"
+  print "-----------------------------------"
 
   if datasets_RV[opt.mass].numEntries() < opt.threshold: continue  
   else:
     ssfs = od()
     min_reduced_chi2, nGauss_opt = 999, 1
     for nGauss in range(1,opt.nGaussMax+1):
-      print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> NGauss = ", nGauss
       k = "nGauss_%g"%nGauss
       #ssf = SimultaneousFit("fTest_RV_%g"%nGauss,proc,opt.cat,datasets_RV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=False)
-      ssf = SimultaneousFit("fTest_RV_%g"%nGauss,proc,opt.cat,datasets_RV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=True)
+
+      ssf = SimultaneousFit("fTest_RV_%g"%nGauss,proc,opt.cat,datasets_RV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=False)
       ssf.buildNGaussians(nGauss)
       ssf.runFit()
       ssf.buildSplines()
       if ssf.Ndof >= 1: 
-        print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> If with ssf.Ndof = ", ssf.Ndof
 	ssfs[k] = ssf
 	if ssfs[k].getReducedChi2() < min_reduced_chi2: 
 	  min_reduced_chi2 = ssfs[k].getReducedChi2()

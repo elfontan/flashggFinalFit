@@ -9,7 +9,7 @@ signalScriptCfg = {
     #'inputWSDir':'/vols/cms/jl2117/hgg/ws/UL/Sept20/MC_final/signal_%s'%_year,
     'procs':'auto', # if auto: inferred automatically from filenames
     'cats':'auto', # if auto: inferred automatically from (0) workspace
-    'ext':'test_%s'%_year,
+    'ext':'test_lowmassAnalysis_%s'%_year,
     'analysis':'lowMassAnalysis', # To specify which replacement dataset mapping (defined in ./tools/replacementMap.py</pre>)
     #'analysis':'example', # To specify which replacement dataset mapping (defined in ./tools/replacementMap.py</pre>)
     #'analysis':'STXS', # To specify which replacement dataset mapping (defined in ./tools/replacementMap.py</pre>)

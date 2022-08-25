@@ -21,7 +21,7 @@ import HiggsAnalysis.CombinedLimit.PhysicsModel as models
 class dummy_options:
   def __init__(self):
     self.physModel = "HiggsAnalysis.CombinedLimit.PhysicsModel:floatingHiggsMass"
-    self.physOpt = ["higgsMassRange=20,40"]
+    self.physOpt = ["higgsMassRange=25,45"]
     #self.physOpt = ["higgsMassRange=90,250"]
     self.bin = True
     self.fileName = "dummy.root"

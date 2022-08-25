@@ -70,7 +70,8 @@ def poisson_interval(x,eSumW2,level=0.68):
 # Function to calc chi2 for binned fit given pdf, RooDataHist and xvar as inputs
 #def calcChi2(x,pdf,d,errorType="Sumw2",_verbose=False,fitRange=[100,180]):
 #def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[110,140]):
-def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[105,150]):
+def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[25,45]):
+#def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[5,65]):
 
   k = 0. # number of non empty bins (for calc degrees of freedom)
   normFactor = d.sumEntries()
@@ -128,14 +129,16 @@ def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[105,150]):
   return result,k
 
 # Function to add chi2 for multiple mass points
-def nChi2Addition(X,ssf,verbose=False):
+def nChi2Addition(X,ssf,verbose=False): 
   # X: vector of param values (updated with minimise function)
   # Loop over parameters and set RooVars
-  for i in range(len(X)): ssf.FitParameters[i].setVal(X[i])
+  for i in range(len(X)): 
+    ssf.FitParameters[i].setVal(X[i])
   # Loop over datasets: adding chi2 for each mass point
   chi2sum = 0
   K = 0 # number of non empty bins
   C = len(X)-1 # number of fit params (-1 for MH)
+
   for mp,d in ssf.DataHists.iteritems():
     ssf.MH.setVal(int(mp))
     chi2, k  = calcChi2(ssf.xvar,ssf.Pdfs['final'],d,_verbose=verbose)
@@ -149,7 +152,7 @@ def nChi2Addition(X,ssf,verbose=False):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 class SimultaneousFit:
   # Constructor
-  def __init__(self,_name,_proc,_cat,_datasetForFit,_xvar,_MH,_MHLow,_MHHigh,_massPoints,_nBins,_MHPolyOrder,_minimizerMethod,_minimizerTolerance,verbose=True):
+  def __init__(self,_name,_proc,_cat,_datasetForFit,_xvar,_MH,_MHLow,_MHHigh,_massPoints,_nBins,_MHPolyOrder,_minimizerMethod,_minimizerTolerance,verbose=False):
     self.name = _name
     self.proc = _proc
     self.cat = _cat
@@ -192,12 +195,6 @@ class SimultaneousFit:
     self.Chi2 = None
     self.FitResult = None
     
-    print "MH:\t", self.MH
-    print "MH Low:\t", self.MHLow
-    print "MH High:\t", self.MHHigh
-    print "dMH:\t", self.dMH
-    print "NBins:\t", self.nBins
-
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
   # Function for setting N degrees of freedom
   def setNdof(self,_ndof): self.Ndof = _ndof  
@@ -230,7 +227,7 @@ class SimultaneousFit:
         drw.add(ROOT.RooArgSet(self.xvar,self.Vars['weight']),self.Vars['weight'].getVal())
       # Convert to RooDataHist
       self.DataHists[k] = ROOT.RooDataHist("%s_hist"%d.GetName(),"%s_hist"%d.GetName(),ROOT.RooArgSet(self.xvar),drw)
-  
+
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
   def buildDCBplusGaussian(self,_recursive=True):
 
@@ -290,13 +287,12 @@ class SimultaneousFit:
 
     # Loop over NGaussians
     for g in range(0,nGaussians):
-      print "@@@@@@@@@@@@@Building Gaussians", g
       # Define polynominal functions for mean and sigma (in MH)
       for f in ['dm','sigma']: 
 	k = "%s_g%g"%(f,g)
-        print "@@@ %s_g%g"%(f,g)
 
 	self.Varlists[k] = ROOT.RooArgList("%s_coeffs"%k)
+
 	# Create coeff for polynominal of order MHPolyOrder: y = a+bx+cx^2+...
 
 	for po in range(0,self.MHPolyOrder+1):
@@ -347,16 +343,13 @@ class SimultaneousFit:
     if self.verbose: print "\n --> (%s) Initialising fit parameters"%self.name
     x0 = self.extractX0()
     xbounds = self.extractXBounds()
-    print "@@@ x0", x0
-    print "@@@ xbounds", xbounds
-
     self.Chi2 = self.getChi2()
     # Print parameter pre-fit values
     if self.verbose: self.printFitParameters(title="Pre-fit")
 
     # Run fit
     if self.verbose: print " --> (%s) Running fit"%self.name
-    self.FitResult = minimize(nChi2Addition,x0,args=self,bounds=xbounds,method=self.minimizerMethod)
+    self.FitResult = minimize(nChi2Addition,x0,args=self,bounds=xbounds,method=self.minimizerMethod) 
     self.Chi2 = self.getChi2()
     #self.Chi2 = nChi2Addition(self.FitResult['x'],self)
     # Print parameter post-fit values
@@ -368,8 +361,10 @@ class SimultaneousFit:
     # Loop over polynomials
     for k, poly in self.Polynomials.iteritems():
       _x, _y = [], []
-      _mh = 100.
-      while(_mh<180.1):
+      _mh = 25.
+      while(_mh<45.1):
+      #_mh = 100.
+      #while(_mh<180.1):
         self.MH.setVal(_mh)
         _x.append(_mh)
         _y.append(poly.getVal())
@@ -389,7 +384,7 @@ class SimultaneousFit:
     print "    ~~~~~~~~~~~~~~~~"
     print "    * chi2 = %.6f, n(dof) = %g --> chi2/n(dof) = %.3f"%(self.getChi2(),int(self.Ndof),self.getChi2()/int(self.Ndof))
     print "    ~~~~~~~~~~~~~~~~"
-    print "    * [VERBOSE] chi2 = %.6f"%(self.getChi2(verbose=True))
+    print "    * [VERBOSE] chi2 = %.6f"%(self.getChi2(verbose=False))
     print " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
