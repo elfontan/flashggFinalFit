@@ -12,7 +12,7 @@ def Translate(name, ndict):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Signal fit plots
 # Plot final pdf at MH = 125 (with data) + individual Pdf components
-def plotPdfMap(model,pdfs,_outdir='./',_cat='',_pdfNBins=1600,_dataNBins=80,setLogY=False):
+def plotPdfMap(model,pdfs,plotBlindingRegion,_outdir='./',_cat='',_pdfNBins=1600,_dataNBins=80,setLogY=False):
   canv = ROOT.TCanvas()
   canv.SetLeftMargin(0.15)
   if setLogY: canv.SetLogy()
@@ -33,9 +33,13 @@ def plotPdfMap(model,pdfs,_outdir='./',_cat='',_pdfNBins=1600,_dataNBins=80,setL
 
   # Blinding region
   if model.blind:
+    if plotBlindingRegion is not None:
+      blindingRegion = plotBlindingRegion
+    else:
+      blindingRegion = model.blindingRegion
     for ibin in range(1,hists['data'].GetNbinsX()+1):
       xval = hists['data'].GetBinCenter(ibin)
-      if( xval >= model.blindingRegion[0] )&( xval <= model.blindingRegion[1] ):
+      if( xval >= blindingRegion[0] )&( xval <= blindingRegion[1] ):
         hists['data'].SetBinContent(ibin,-1)
         hists['data'].SetBinError(ibin,0)
   hists['data'].SetTitle("")
@@ -57,7 +61,7 @@ def plotPdfMap(model,pdfs,_outdir='./',_cat='',_pdfNBins=1600,_dataNBins=80,setL
   hists['data'].Draw("PE")
   for k,v in pdfs.iteritems():
     # Scale pdf histograms
-    hists[k].Scale(v['norm']*(_pdfNBins/_dataNBins))
+    hists[k].Scale(v['norm']*(float(_pdfNBins/_dataNBins)))
     hists[k].Draw("Same HIST")
 
   # Add legend

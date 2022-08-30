@@ -17,6 +17,12 @@ from backgroundFunctions import *
 from modelBuilder_v2 import *
 from plottingTools import *
 
+def tryMake(directory):
+  try:
+    os.mkdir(directory)
+  except:
+    pass
+
 def leave():
   print "\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ HGG BACKGROUND FITTER (END) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ "
   sys.exit(1)
@@ -29,6 +35,7 @@ def get_options():
   parser.add_option("--cat", dest='cat', default='', help="RECO category")
   parser.add_option("--year", dest='year', default='2016', help="Year. Use 'merged' for year-merged cat")
   parser.add_option("--blindingRegion", dest='blindingRegion', default='115,135', help="Only fit function outside this region (unless running with --fitFullRange)")
+  parser.add_option("--plotBlindingRegion", dest='plotBlindingRegion', default=None, help="Region to blind in plot. If None, will default to --blindingRegion")
   parser.add_option("--fitFullRange", dest='fitFullRange', default=False, action="store_true", help="Fit background pdfs over full range, including the blinding region")
   parser.add_option("--maxOrder", dest='maxOrder', default=6, type='int', help="Max order of functions")
   parser.add_option("--pvalFTest", dest='pvalFTest', default=0.05, type='float', help="p-value threshold to include higher order function in envelope")
@@ -74,12 +81,11 @@ model.goodnessOfFit(_gofCriteria = opt.gofCriteria)
 
 for k in model.pdfs: print "%s --> Success: %s, Evals = %g, NLL = %.3f"%(k,model.pdfs[k]['status']['success'],model.pdfs[k]['status']['nfev'],model.pdfs[k]['NLL'])
 
-pdf_null = model.pdfs[('Exponential',3)]
-pdf_test = model.pdfs[('Exponential',5)]
+pdf_null = model.pdfs[('Exponential',1)]
+pdf_test = model.pdfs[('Exponential',1)]
 
+#change directory
 model.getProbabilityFTestFromToys(pdf_null,pdf_test,_outDir="/eos/home-j/jlangfor/www/CMS/postdoc/finalfits/Jul21/Background/fTest_with_toys",nToys=10)
-
-sys.exit(1)
 
 # Build envelope
 if opt.year == "merged": model.buildEnvelope(_extension="_%s"%sqrts__)
@@ -94,7 +100,10 @@ else: model.buildNorm( norm, _extension="_%s_%s"%(opt.year,sqrts__))
 
 # Plotting
 print "\n --> Plotting envelope"
-plotPdfMap(model,model.envelopePdfs,_outdir="/eos/home-j/jlangfor/www/CMS/postdoc/finalfits/Jul21/Background",_cat=opt.cat)
+#change directory
+tryMake("/home/hep/mdk16/PhD/ggtt/finalfits_try2/CMSSW_10_2_13/src/flashggFinalFit/Background/plots")
+tryMake("/home/hep/mdk16/PhD/ggtt/finalfits_try2/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s"%opt.year)
+plotPdfMap(model,model.envelopePdfs,opt.plotBlindingRegion,_outdir="/home/hep/mdk16/PhD/ggtt/finalfits_try2/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s"%opt.year,_cat=opt.cat)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # SAVE: to output workspace
