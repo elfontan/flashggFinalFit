@@ -27,7 +27,8 @@ BR_Z_qq = 69.91*0.01
 BR_W_qq = 67.41*0.01
 
 # Production modes and decay channel: for extract XS from combine
-productionModes = ['ggH','qqH','ttH','tHq','tHW','ggZH','WH','ZH','bbH']
+productionModes = ['ggH']
+#productionModes = ['ggH','qqH','ttH','tHq','tHW','ggZH','WH','ZH','bbH']
 decayMode = 'hgg'
 
 # flashgg input WS objects

@@ -11,9 +11,9 @@ globalXSBRMap = od()
 #globalXSBRMap['example']['PROCNAME'] = {'mode':'constant','factor':0.001}
 
 # For Low mass analysis: ggH 
-globalXSBRMap['lowmassAnalysis'] = od()
-globalXSBRMap['lowmassAnalysis']['decay'] = {'mode':'hgg','factor':1}
-globalXSBRMap['lowmassAnalysis']['GG2H'] = {'mode':'ggh','factor':1}
+globalXSBRMap['lowMassAnalysis'] = od()
+globalXSBRMap['lowMassAnalysis']['decay'] = {'mode':'hgg','factor':1}
+globalXSBRMap['lowMassAnalysis']['GG2H'] = {'mode':'ggH','factor':1}
 
 # For case of inclusive production mode then have no additional factor beyond V branching ratios
 globalXSBRMap['example'] = od()

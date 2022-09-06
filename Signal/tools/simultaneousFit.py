@@ -70,8 +70,7 @@ def poisson_interval(x,eSumW2,level=0.68):
 # Function to calc chi2 for binned fit given pdf, RooDataHist and xvar as inputs
 #def calcChi2(x,pdf,d,errorType="Sumw2",_verbose=False,fitRange=[100,180]):
 #def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[110,140]):
-def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[25,45]):
-#def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[5,65]):
+def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[10,70]):
 
   k = 0. # number of non empty bins (for calc degrees of freedom)
   normFactor = d.sumEntries()
@@ -170,9 +169,9 @@ class SimultaneousFit:
     # Prepare vars
     self.MH.setConstant(False)
     self.MH.setVal(35)
-    self.MH.setBins(10)
-    self.dMH = ROOT.RooFormulaVar("dMH","dMH","@0-35.0",ROOT.RooArgList(self.MH)) 
     self.xvar.setVal(35)
+    self.MH.setBins(20)
+    self.dMH = ROOT.RooFormulaVar("dMH","dMH","@0-35.0",ROOT.RooArgList(self.MH)) 
     #self.MH.setVal(125)
     #self.MH.setBins(10)
     #self.dMH = ROOT.RooFormulaVar("dMH","dMH","@0-125.0",ROOT.RooArgList(self.MH)) 
@@ -361,14 +360,15 @@ class SimultaneousFit:
     # Loop over polynomials
     for k, poly in self.Polynomials.iteritems():
       _x, _y = [], []
-      _mh = 25.
-      while(_mh<45.1):
+      _mh = 5.
+      while(_mh<80.1):
       #_mh = 100.
       #while(_mh<180.1):
         self.MH.setVal(_mh)
         _x.append(_mh)
         _y.append(poly.getVal())
-        _mh += 0.1
+        _mh += 0.5
+        #_mh += 0.1
       # Convert to arrays
       arr_x, arr_y = array('f',_x), array('f',_y)
       # Create spline and save to dict

@@ -21,7 +21,7 @@ import HiggsAnalysis.CombinedLimit.PhysicsModel as models
 class dummy_options:
   def __init__(self):
     self.physModel = "HiggsAnalysis.CombinedLimit.PhysicsModel:floatingHiggsMass"
-    self.physOpt = ["higgsMassRange=25,45"]
+    self.physOpt = ["higgsMassRange=5,70"]
     #self.physOpt = ["higgsMassRange=90,250"]
     self.bin = True
     self.fileName = "dummy.root"
@@ -54,7 +54,8 @@ def initialiseXSBR():
 
   # Make XS and BR
   SM.makeBR(decayMode)
-  for pm in productionModes: SM.makeXS(pm,sqrts__)
+  for pm in productionModes:     
+    SM.makeXS(pm,sqrts__)
 
   # Store numpy arrays for each production mode in ordered dict
   xsbr = od()
@@ -63,8 +64,8 @@ def initialiseXSBR():
   xsbr['constant'] = []
   #mh = 120.
   #while( mh < 130.05 ):
-  mh = 20.
-  while( mh < 40.05 ):
+  mh = 5.
+  while( mh < 70.05 ):
     for pm in productionModes: xsbr[pm].append(getXS(SM,MHVar,mh,pm))
     xsbr[decayMode].append(getBR(SM,MHVar,mh,decayMode))
     xsbr['constant'].append(1.)
@@ -139,17 +140,25 @@ class FinalModel:
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Functions to get XS, BR and EA splines for given proc/decay from map
   def buildXSBRSplines(self):
-    mh = np.linspace(20.,40.,101)
+    mh = np.linspace(5.,70., 303)
     #mh = np.linspace(120.,130.,101)
     # XS
     fp = self.xsbrMap[self.proc]['factor'] if 'factor' in self.xsbrMap[self.proc] else 1.
     mp = self.xsbrMap[self.proc]['mode']
     xs = fp*self.XSBR[mp]
+    print "--------------------------------------\n"
+    print "[buildXSBRSplines] fp = ", fp
+    print "[buildXSBRSplines] mp = ", mp
+    print "[buildXSBRSplines] xs = ", xs
     self.Splines['xs'] = ROOT.RooSpline1D("fxs_%s_%s"%(self.proc,self.sqrts),"fxs_%s_%s"%(self.proc,self.sqrts),self.MH,len(mh),mh,xs)
     # BR
     fd = self.xsbrMap['decay']['factor'] if 'factor' in self.xsbrMap['decay'] else 1.
     md = self.xsbrMap['decay']['mode']
     br = fd*self.XSBR[md]
+    print "[buildXSBRSplines] fd = ", fd
+    print "[buildXSBRSplines] md = ", md
+    print "[buildXSBRSplines] br = ", br
+    print "--------------------------------------\n"
     self.Splines['br'] = ROOT.RooSpline1D("fbr_%s"%self.sqrts,"fbr_%s"%self.sqrts,self.MH,len(mh),mh,br)
 
   def buildEffAccSpline(self):

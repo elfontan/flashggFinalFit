@@ -20,7 +20,7 @@ from finalModel import *
 from plottingTools import *
 
 # Constant
-MHLow, MHHigh = '25', '45'
+MHLow, MHHigh = '10', '70'
 MHNominal = '35'
 #MHLow, MHHigh = '120', '130'
 #MHNominal = '125'
@@ -38,7 +38,7 @@ def get_options():
   parser.add_option("--cat", dest='cat', default='', help="RECO category")
   parser.add_option("--year", dest='year', default='2016', help="Year")
   parser.add_option("--analysis", dest='analysis', default='STXS', help="Analysis handle: used to specify replacement map and XS*BR normalisations")
-  parser.add_option('--massPoints', dest='massPoints', default='5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65', help="Mass points to fit")
+  parser.add_option('--massPoints', dest='massPoints', default='5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70', help="Mass points to fit")
   #parser.add_option('--massPoints', dest='massPoints', default='20, 30, 40', help="Mass points to fit")
   #parser.add_option('--massPoints', dest='massPoints', default='120,125,130', help="Mass points to fit")
   parser.add_option('--doEffAccFromJson', dest='doEffAccFromJson', default=False, action="store_true", help="Extract eff x acc from json (produced by getEffAcc). Else, extract from nominal weights in flashgg workspaces")
@@ -94,11 +94,15 @@ else: xsbrMap = globalXSBRMap[opt.analysis]
 
 # Load RooRealVars
 nominalWSFileName = glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,MHNominal,opt.proc))[0]
+print "-------------------------------"
+print "[signalFit] nominalWSFileName: ", nominalWSFileName
+print "-------------------------------"
 f0 = ROOT.TFile(nominalWSFileName,"read")
 inputWS0 = f0.Get(inputWSName__)
 xvar = inputWS0.var(opt.xvar)
 xvarFit = xvar.Clone()
-dZ = inputWS0.var("dZ")
+dZ = inputWS0.var("vtxdz")
+#dZ = inputWS0.var("dZ")
 aset = ROOT.RooArgSet(xvar,dZ)
 f0.Close()
 
@@ -155,10 +159,25 @@ nominalDatasets = od()
 # For RV (or if skipping vertex scenario split)
 datasetRVForFit = od()
 for mp in opt.massPoints.split(","):
+  print "mp is", mp
+  #WSFileName = "/afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/CMSSW_10_2_13/src/flashggFinalFit/Signal/signal_2018/output_GluGluHToGG_M5_13TeV_amcatnloFXFX_pythia8_GG2H.root"
   WSFileName = glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,mp,procRVFit))[0]
+  print "WSFileName in mass points loop: ", WSFileName
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
-  d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(procRVFit.split("_")[0]),mp,sqrts__,catRVFit)),aset)
+  print "inputWS: ", inputWS
+  print "-----------------------------------"
+  print "[signalFit] Reduce dataset"
+  print "-----------------------------------"
+  print "PROC\t\t", procToData(procRVFit.split("_")[0])
+  print "MASS\t\t", mp
+  print "ENERGY\t\t", sqrts__
+  print "CAT\t\t", catRVFit
+  d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(opt.proc.split("_")[0]),mp,sqrts__,opt.cat)),aset)
+  #d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(procRVFit.split("_")[0]),mp,sqrts__,catRVFit)),aset)
+  print "RooDataSet:\t", d
+  print "-----------------------------------"
+
   nominalDatasets[mp] = d.Clone()
   if opt.skipVertexScenarioSplit: datasetRVForFit[mp] = d
   else: 

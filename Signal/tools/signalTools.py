@@ -7,7 +7,9 @@ from collections import OrderedDict as od
 from commonObjects import *
 
 # Functions for manip RooDataSets
-def reduceDataset(_d,_argset): return _d.reduce(_argset)
+def reduceDataset(_d,_argset): 
+  print "DATASET is: ", _d
+  return _d.reduce(_argset)
 
 def splitRVWV(_d,_argset,mode="RV"):
   # Split into RV/WV scenario at dZ = 1cm
@@ -29,7 +31,6 @@ def beamspotReweigh(d,widthData,widthMC,_xvar,_dZ,_x='CMS_hgg_mass',preserveNorm
   rw = ROOT.RooRealVar("weight","weight",-100000,1000000)
   for i in range(0,d.numEntries()):
     x, dz = d.get(i).getRealValue(_x), d.get(i).getRealValue("vtxdz")    
-    print "######### dz =\t", d.get(i).getRealValue("vtxdz")
     #x, dz = d.get(i).getRealValue(_x), d.get(i).getRealValue("dZ")
     f = 1.
     if abs(dz) < 0.1: f = 1.
@@ -49,7 +50,6 @@ def beamspotReweigh(d,widthData,widthMC,_xvar,_dZ,_x='CMS_hgg_mass',preserveNorm
     fsumw = drw.sumEntries()
     drw_pn = d.emptyClone()
     for i in range(0,drw.numEntries()):
-      print "######### dz =\t", drw.get(i).getRealValue("vtxdz")
       x, dz = drw.get(i).getRealValue(_x), drw.get(i).getRealValue("vtxdz")
       #x, dz = drw.get(i).getRealValue(_x), drw.get(i).getRealValue("dZ")
       f = isumw/fsumw if fsumw!=0. else 1.

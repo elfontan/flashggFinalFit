@@ -19,10 +19,6 @@ from signalTools import *
 from simultaneousFit import *
 from plottingTools import *
 
-MHLow, MHHigh = '30', '40'
-#MHLow, MHHigh = '5', '65'
-#MHLow, MHHigh = '120', '130'
-
 def leave():
   print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ HGG SIGNAL FTEST (END) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ "
   exit()
@@ -47,6 +43,10 @@ def get_options():
   parser.add_option('--minimizerTolerance', dest='minimizerTolerance', default=1e-8, type='float', help="(Scipy) Minimizer toleranve")
   return parser.parse_args()
 (opt,args) = get_options()
+
+# The central mass point is provided as an option;
+# the mass range is defined as -/+ 5 GeV
+MHLow, MHHigh = str(int(opt.mass) - 5), str(int(opt.mass) + 5)
 
 ROOT.gStyle.SetOptStat(0)
 ROOT.gROOT.SetBatch(True)
