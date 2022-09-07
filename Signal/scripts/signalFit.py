@@ -61,7 +61,8 @@ def get_options():
   parser.add_option('--beamspotWidthData', dest='beamspotWidthData', default=3.4, type='float', help="Width of beamspot in data [cm]")
   parser.add_option('--beamspotWidthMC', dest='beamspotWidthMC', default=5.14, type='float', help="Width of beamspot in MC [cm]")
   parser.add_option('--MHPolyOrder', dest='MHPolyOrder', default=1, type='int', help="Order of polynomial for MH dependence")
-  parser.add_option('--nBins', dest='nBins', default=80, type='int', help="Number of bins for fit")
+  parser.add_option('--nBins', dest='nBins', default=260, type='int', help="Number of bins for fit")
+  #parser.add_option('--nBins', dest='nBins', default=80, type='int', help="Number of bins for fit")
   # Minimizer options
   parser.add_option('--minimizerMethod', dest='minimizerMethod', default='TNC', help="(Scipy) Minimizer method")
   parser.add_option('--minimizerTolerance', dest='minimizerTolerance', default=1e-8, type='float', help="(Scipy) Minimizer toleranve")
@@ -161,7 +162,7 @@ datasetRVForFit = od()
 for mp in opt.massPoints.split(","):
   print "mp is", mp
   #WSFileName = "/afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/CMSSW_10_2_13/src/flashggFinalFit/Signal/signal_2018/output_GluGluHToGG_M5_13TeV_amcatnloFXFX_pythia8_GG2H.root"
-  WSFileName = glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,mp,procRVFit))[0]
+  WSFileName = glob.glob("%s/output*M%s*_*%s.root"%(opt.inputWSDir,mp,procRVFit))[0] #glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,MHNominal,opt.proc))[0]
   print "WSFileName in mass points loop: ", WSFileName
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
@@ -308,6 +309,7 @@ if opt.doVoigtian:
 ssfMap = od()
 name = "Total" if opt.skipVertexScenarioSplit else "RV"
 ssfRV = SimultaneousFit(name,opt.proc,opt.cat,datasetRVForFit,xvar.Clone(),MH,MHLow,MHHigh,opt.massPoints,opt.nBins,opt.MHPolyOrder,opt.minimizerMethod,opt.minimizerTolerance)
+
 if opt.useDCB: ssfRV.buildDCBplusGaussian()
 else: ssfRV.buildNGaussians(nRV)
 ssfRV.runFit()

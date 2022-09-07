@@ -69,7 +69,8 @@ def initialiseXSBR():
     for pm in productionModes: xsbr[pm].append(getXS(SM,MHVar,mh,pm))
     xsbr[decayMode].append(getBR(SM,MHVar,mh,decayMode))
     xsbr['constant'].append(1.)
-    mh += 0.1
+    mh += 0.5
+    #mh += 0.1
   for pm in productionModes: xsbr[pm] = np.asarray(xsbr[pm])
   xsbr[decayMode] = np.asarray(xsbr[decayMode])
   xsbr['constant'] = np.asarray(xsbr['constant'])
@@ -140,7 +141,8 @@ class FinalModel:
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Functions to get XS, BR and EA splines for given proc/decay from map
   def buildXSBRSplines(self):
-    mh = np.linspace(5.,70., 303)
+    #mh = np.linspace(5.,70., 130) # Step of 0.5 GeV
+    mh = np.linspace(5.,70., 65) # Step of 1 GeV
     #mh = np.linspace(120.,130.,101)
     # XS
     fp = self.xsbrMap[self.proc]['factor'] if 'factor' in self.xsbrMap[self.proc] else 1.

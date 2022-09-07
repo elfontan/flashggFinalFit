@@ -205,7 +205,7 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
   hists['final'].SetMinimum(0)
   if hists['final'].GetMaximum()>hmax: hmax = hists['final'].GetMaximum()
   if hists['final'].GetMinimum()<hmin: hmin = hists['final'].GetMinimum()
-  hists['final'].GetXaxis().SetRangeUser(5,75)
+  hists['final'].GetXaxis().SetRangeUser(0,80)
   #hists['final'].GetXaxis().SetRangeUser(115,140)
   #hists['final'].GetXaxis().SetRangeUser(100,150)
   # Create data histogram
@@ -215,7 +215,7 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
   hists['data'].SetTitle("")
   hists['data'].GetXaxis().SetTitle("m_{#gamma#gamma} [GeV]")
   hists['data'].SetMinimum(0)
-  hists['data'].GetXaxis().SetRangeUser(5,75)
+  hists['data'].GetXaxis().SetRangeUser(0,80)
   #hists['data'].GetXaxis().SetRangeUser(115,140)
   #hists['data'].GetXaxis().SetRangeUser(100,150)
   hists['data'].Scale(float(ssf.nBins)/1600)
@@ -302,9 +302,14 @@ def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 3
     norm = _finalModel.Functions['final_normThisLumi'].getVal()
     if norm == 0.: hists[mp].Scale(0.)
     else: 
+        print"---------------------------------------------"
+        print" Scaling of the histograms: "
+        print"---------------------------------------------"
         print "mp is == ", mp
+        print "N bins of the mass distribution (from WS probably) = ", _finalModel.xvar.getBins() 
         print "hists[mp].Integral() = ", hists[mp].Integral()
-        print "_finalModel.xvar.getBins() = ", _finalModel.xvar.getBins() 
+        print "Scaling factor = ", (norm*3200)/(hists[mp].Integral()*_finalModel.xvar.getBins())
+        print"---------------------------------------------"
         hists[mp].Scale((norm*3200)/(hists[mp].Integral()*_finalModel.xvar.getBins()))
     if mp in _finalModel.Datasets:
       hists[mp].SetLineWidth(2)
@@ -377,7 +382,7 @@ def plotSplines(_finalModel,_outdir="./",_nominalMass='35',splinesToPlot=['xs','
   xnom['norm'] = _finalModel.Functions['final_normThisLumi'].getVal()
   # Loop over mass points
   p = 0
-  xmax, xmin = 0,0.5
+  xmax, xmin = 0, 0.5
   for mh in range(int(_finalModel.MHLow),int(_finalModel.MHHigh)+1):
     _finalModel.MH.setVal(float(mh))
     for sp in splinesToPlot:
