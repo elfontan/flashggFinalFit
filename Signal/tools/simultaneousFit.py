@@ -14,7 +14,7 @@ pLUT['DCB'] = od()
 pLUT['DCB']['dm_p0'] = [0.1,-2.5,2.5]
 pLUT['DCB']['dm_p1'] = [0.0,-0.1,0.1]
 pLUT['DCB']['dm_p2'] = [0.0,-0.001,0.001]
-pLUT['DCB']['sigma_p0'] = [2.,1.,20.]
+pLUT['DCB']['sigma_p0'] = [0.3,1.,20.]
 pLUT['DCB']['sigma_p1'] = [0.0,-0.1,0.1]
 pLUT['DCB']['sigma_p2'] = [0.0,-0.001,0.001]
 pLUT['DCB']['n1_p0'] = [20.,1.00001,500]
@@ -33,7 +33,7 @@ pLUT['Gaussian_wdcb'] = od()
 pLUT['Gaussian_wdcb']['dm_p0'] = [0.1,-1.5,1.5]
 pLUT['Gaussian_wdcb']['dm_p1'] = [0.01,-0.01,0.01]
 pLUT['Gaussian_wdcb']['dm_p2'] = [0.01,-0.01,0.01]
-pLUT['Gaussian_wdcb']['sigma_p0'] = [1.5,1.0,4.]
+pLUT['Gaussian_wdcb']['sigma_p0'] = [0.5,0.1,1.]
 pLUT['Gaussian_wdcb']['sigma_p1'] = [0.0,-0.1,0.1]
 pLUT['Gaussian_wdcb']['sigma_p2'] = [0.0,-0.001,0.001]
 pLUT['Frac'] = od()
@@ -42,9 +42,10 @@ pLUT['Frac']['p1'] = [0.,-0.05,0.05]
 pLUT['Frac']['p2'] = [0.,-0.0001,0.0001]
 pLUT['Gaussian'] = od()
 pLUT['Gaussian']['dm_p0'] = [0.1,-5.,5.]
-pLUT['Gaussian']['dm_p1'] = [0.0,-0.01,0.01]
+pLUT['Gaussian']['dm_p1'] = [0.1,-0.01,0.01]
 pLUT['Gaussian']['dm_p2'] = [0.0,-0.01,0.01]
-pLUT['Gaussian']['sigma_p0'] = ['func',0.5,10.0]
+#pLUT['Gaussian']['sigma_p0'] = ['func',0.5,10.0] # The initial value set at 0.5 is a too large sigma to fit properly the mass at 20 GeV and below
+pLUT['Gaussian']['sigma_p0'] = ['func', 0.1, 10.0]
 pLUT['Gaussian']['sigma_p1'] = [0.0,-0.01,0.01]
 pLUT['Gaussian']['sigma_p2'] = [0.0,-0.01,0.01]
 pLUT['FracGaussian'] = od()
@@ -70,7 +71,8 @@ def poisson_interval(x,eSumW2,level=0.68):
 # Function to calc chi2 for binned fit given pdf, RooDataHist and xvar as inputs
 #def calcChi2(x,pdf,d,errorType="Sumw2",_verbose=False,fitRange=[100,180]):
 #def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[110,140]):
-def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[10,70]):
+def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[5,70]):
+#def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[1,80]):
 
   k = 0. # number of non empty bins (for calc degrees of freedom)
   normFactor = d.sumEntries()
@@ -168,10 +170,10 @@ class SimultaneousFit:
     self.verbose = verbose
     # Prepare vars
     self.MH.setConstant(False)
-    self.MH.setVal(35)
-    self.xvar.setVal(35)
-    self.MH.setBins(20)
-    self.dMH = ROOT.RooFormulaVar("dMH","dMH","@0-35.0",ROOT.RooArgList(self.MH)) 
+    self.MH.setVal(40)
+    self.xvar.setVal(40)
+    self.MH.setBins(800)
+    self.dMH = ROOT.RooFormulaVar("dMH","dMH","@0-40.0",ROOT.RooArgList(self.MH)) 
     #self.MH.setVal(125)
     #self.MH.setBins(10)
     #self.dMH = ROOT.RooFormulaVar("dMH","dMH","@0-125.0",ROOT.RooArgList(self.MH)) 
@@ -361,14 +363,16 @@ class SimultaneousFit:
     for k, poly in self.Polynomials.iteritems():
       _x, _y = [], []
       _mh = 5.
-      while(_mh<80.1):
+      while(_mh<70.1):
+      #_mh = 0.
+      #while(_mh<80.1):
       #_mh = 100.
       #while(_mh<180.1):
         self.MH.setVal(_mh)
         _x.append(_mh)
         _y.append(poly.getVal())
-        _mh += 0.5
-        #_mh += 0.1
+        #_mh += 0.5
+        _mh += 0.1
       # Convert to arrays
       arr_x, arr_y = array('f',_x), array('f',_y)
       # Create spline and save to dict

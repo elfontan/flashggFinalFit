@@ -45,8 +45,8 @@ def get_options():
 (opt,args) = get_options()
 
 # The central mass point is provided as an option;
-# the mass range is defined as -/+ 5 GeV
-MHLow, MHHigh = str(int(opt.mass) - 5), str(int(opt.mass) + 5)
+# the mass range is defined as -/+ 10% of the mass value
+MHLow, MHHigh = str(int(opt.mass) - int(opt.mass)*10/100), str(int(opt.mass) + int(opt.mass)*10/100)
 
 ROOT.gStyle.SetOptStat(0)
 ROOT.gROOT.SetBatch(True)
@@ -74,8 +74,8 @@ MH.setConstant(True)
 df = pd.DataFrame(columns=['proc','sumEntries','nRV','nWV'])
 procYields = od()
 for proc in opt.procs.split(","):
-  print "FILE NAME:  %s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc)
-  WSFileName = glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc))[0]
+  print "FILE NAME:  %s/output*M%s_*%s.root"%(opt.inputWSDir,opt.mass,proc)
+  WSFileName = glob.glob("%s/output*M%s_*%s.root"%(opt.inputWSDir,opt.mass,proc))[0]
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
   d = reduceDataset(inputWS.data("%s_%s_%s_%s"%(procToData(proc.split("_")[0]),opt.mass,sqrts__,opt.cat)),aset)
@@ -102,7 +102,7 @@ for pidx, proc in enumerate(procsToFTest):
 
   # Split dataset to RV/WV: ssf requires input as dict (with mass point as key)
   datasets_RV, datasets_WV = od(), od()
-  WSFileName = glob.glob("%s/output*M%s*%s.root"%(opt.inputWSDir,opt.mass,proc))[0]
+  WSFileName = glob.glob("%s/output*M%s_*%s.root"%(opt.inputWSDir,opt.mass,proc))[0]
   f = ROOT.TFile(WSFileName,"read")
   inputWS = f.Get(inputWSName__)
   print "-----------------------------------"

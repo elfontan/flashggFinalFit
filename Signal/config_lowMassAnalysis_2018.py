@@ -5,19 +5,19 @@ _year = '2018'
 signalScriptCfg = {
     
     # Setup
-    'inputWSDir':'/afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/CMSSW_10_2_13/src/flashggFinalFit/Signal/signal_%s'%_year,
+    'inputWSDir':'/afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/CMSSW_10_2_13/src/flashggFinalFit/Signal/signal_xsec1_%s'%_year,
     'procs':'auto', # if auto: inferred automatically from filenames
     'cats':'auto', # if auto: inferred automatically from (0) workspace
-    'ext':'test_lowmassAnalysis_%s'%_year,
+    'ext':'lowmassAnalysis_allMassPoints_newBinning_xsec1_%s'%_year,
     'analysis':'lowMassAnalysis', # To specify which replacement dataset mapping (defined in ./tools/replacementMap.py</pre>)
     #'analysis':'example', # To specify which replacement dataset mapping (defined in ./tools/replacementMap.py</pre>)
     #'analysis':'STXS', # To specify which replacement dataset mapping (defined in ./tools/replacementMap.py</pre>)
     'year':'%s'%_year, # Use 'combined' if merging all years: not recommended
-    'massPoints':'10,15,20,25,30,35,40,45,50,55,60,65,70',
+    'massPoints':'5,10,15,20,25,30,35,40,45,50,55,60,65,70',
     
     # Additional option for the fit: --useDCB (by default it is false)
     # Use DCB + 1 Gaussian as pdf instead of N Gaussians
-    #'--useDCB': 0,
+    #'--useDCB': 1,
     
     #Photon shape systematics  
     'scales':'', # separate nuisance per year

@@ -21,14 +21,15 @@ import HiggsAnalysis.CombinedLimit.PhysicsModel as models
 class dummy_options:
   def __init__(self):
     self.physModel = "HiggsAnalysis.CombinedLimit.PhysicsModel:floatingHiggsMass"
-    self.physOpt = ["higgsMassRange=5,70"]
+    self.physOpt = ["higgsMassRange=0,80"]
     #self.physOpt = ["higgsMassRange=90,250"]
     self.bin = True
     self.fileName = "dummy.root"
     self.cexpr = False
     self.out = "wsdefault"
     self.verbose = 0
-    self.mass = 35
+    #self.mass = 35
+    self.mass = 40
     #self.mass = 125
     self.funcXSext = "dummy"
 
@@ -141,8 +142,9 @@ class FinalModel:
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Functions to get XS, BR and EA splines for given proc/decay from map
   def buildXSBRSplines(self):
-    #mh = np.linspace(5.,70., 130) # Step of 0.5 GeV
-    mh = np.linspace(5.,70., 65) # Step of 1 GeV
+    #mh = np.linspace(5.,80., 150) # Step of 0.5 GeV
+    #mh = np.linspace(0.,80., 160) # Step of 0.5 GeV
+    mh = np.linspace(5.,70., 130) # Step of 0.5 GeV
     #mh = np.linspace(120.,130.,101)
     # XS
     fp = self.xsbrMap[self.proc]['factor'] if 'factor' in self.xsbrMap[self.proc] else 1.
@@ -180,7 +182,11 @@ class FinalModel:
         sumw = self.datasets[mp].sumEntries()
         self.MH.setVal(float(mp))
         xs,br = self.Splines['xs'].getVal(), self.Splines['br'].getVal()
-        ea.append(sumw/(lumiScaleFactor*xs*br)) 
+        #ea.append(sumw/(lumiScaleFactor*xs*br*1000*1.06))
+        print "#######################################" 
+        print "Sum of weights = ", sumw 
+        print "sumw scaled standalone= ", sumw/(lumiScaleFactor*xs*br*1.06) 
+        ea.append(sumw/(lumiScaleFactor*xs*br*1.06)) 
     # If single mass point then add MHLow and MHHigh dummy points for constant ea
     if len(ea) == 1: ea, mh = [ea[0],ea[0],ea[0]], [float(self.MHLow),mh[0],float(self.MHHigh)]
     # Convert to numpy arrays and make spline
