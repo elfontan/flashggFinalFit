@@ -21,8 +21,7 @@ from plottingTools import *
 
 # Constant
 MHLow, MHHigh = '5', '70'
-#MHNominal = '35'
-MHNominal = '40'
+MHNominal = '35'
 #MHLow, MHHigh = '120', '130'
 #MHNominal = '125'
 
@@ -103,8 +102,8 @@ f0 = ROOT.TFile(nominalWSFileName,"read")
 inputWS0 = f0.Get(inputWSName__)
 xvar = inputWS0.var(opt.xvar)
 xvarFit = xvar.Clone()
-dZ = inputWS0.var("vtxdz")
-#dZ = inputWS0.var("dZ")
+#dZ = inputWS0.var("vtxdz")
+dZ = inputWS0.var("dZ")
 aset = ROOT.RooArgSet(xvar,dZ)
 f0.Close()
 

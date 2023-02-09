@@ -5,7 +5,7 @@ _year = '2018'
 signalScriptCfg = {
     
     # Setup
-    'inputWSDir':'/afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/CMSSW_10_2_13/src/flashggFinalFit/Signal/signal_xsec1_%s'%_year,
+    'inputWSDir':'/afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/CMSSW_10_2_13/src/flashggFinalFit/Signal/signal_xsec1_%s/dZ'%_year,
     'procs':'auto', # if auto: inferred automatically from filenames
     'cats':'auto', # if auto: inferred automatically from (0) workspace
     'ext':'lowmassAnalysis_allMassPoints_newBinning_xsec1_%s'%_year,
