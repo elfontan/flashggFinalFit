@@ -20,8 +20,10 @@ from finalModel import *
 from plottingTools import *
 
 # Constant
-MHLow, MHHigh = '5', '70'
-MHNominal = '35'
+#MHLow, MHHigh = '30', '70'
+#MHNominal = '50'
+MHLow, MHHigh = '5', '30'
+MHNominal = '15'
 #MHLow, MHHigh = '120', '130'
 #MHNominal = '125'
 

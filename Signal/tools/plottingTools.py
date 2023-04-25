@@ -66,8 +66,7 @@ def getEffSigma(_h):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Ftest: plots
 # Plot possible nGauss fits and chi2 values
-#def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='35'):
-def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='40'):
+def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='35'):
 #def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='125'):
   canv = ROOT.TCanvas("", "", 1200, 1000)
   canv.SetLeftMargin(0.15)
@@ -94,6 +93,7 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='40'
   # Extract data histogram
   hists['data'] = ssf.xvar.createHistogram("h_data%s"%_extension,ROOT.RooFit.Binning(ssf.nBins))
   ssf.DataHists[_mass].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar))
+  hists['data'].Scale(float(ssf.nBins)/800) #EF
   #hists['data'].Scale(float(ssf.nBins)/1600) EF
   hists['data'].SetMarkerStyle(20)
   hists['data'].SetMarkerColor(1)
@@ -116,10 +116,10 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='40'
     h.Draw("HIST SAME")
 
   # Legend & Text
-  leg = ROOT.TLegend(0.55,0.3,0.86,0.8)
+  leg = ROOT.TLegend(0.55,0.5,0.86,0.8)
   leg.SetFillStyle(0)
   leg.SetLineColor(0)
-  leg.SetTextSize(0.03)
+  leg.SetTextSize(0.025)
   leg.AddEntry(hists['data'],"Simulation","ep")
   for k,ssf in ssfs.iteritems(): 
     if int(k.split("_")[-1]) == _opt: leg.AddEntry(hists[k],"#bf{N_{gauss} = %s}: #chi^{2}/n(dof) = %.4f"%(k.split("_")[-1],ssf.getReducedChi2()),"L")
@@ -130,7 +130,7 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='40'
   lat.SetTextFont(42)
   lat.SetTextAlign(31)
   lat.SetNDC()
-  lat.SetTextSize(0.03)
+  lat.SetTextSize(0.04)
   lat.DrawLatex(0.9,0.92,"( %s , %s , %s )"%(_extension,_proc,_cat))
 
   canv.Update()
@@ -138,8 +138,9 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='40'
   canv.SaveAs("%s/fTest_%s_%s_%s_M%s.pdf"%(_outdir,_cat,_proc,_extension,_mass))
 
 # Plot reduced chi2 vs nGauss
-def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='35'):
-#def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='40'):
+def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='35'): # DEF, M35
+#def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='15'): # M15
+#def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='50'): # M50
 #def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='125'):
   canv = ROOT.TCanvas("", "", 1200, 1000)
   gr = ROOT.TGraph()
@@ -194,8 +195,9 @@ def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass
 def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
   canv = ROOT.TCanvas("", "", 1200, 1000)
   canv.SetLeftMargin(0.15)
-  ssf.MH.setVal(35)
-  #ssf.MH.setVal(40)
+  ssf.MH.setVal(35) # DEF, M35
+  #ssf.MH.setVal(15) # M15
+  #ssf.MH.setVal(50) # M50
   #ssf.MH.setVal(125)
   LineColorMap = {0:ROOT.kAzure+1,1:ROOT.kRed-4,2:ROOT.kOrange,3:ROOT.kGreen+2,4:ROOT.kMagenta-9}
   pdfs = od()
@@ -212,21 +214,26 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
   if hists['final'].GetMaximum()>hmax: hmax = hists['final'].GetMaximum()
   if hists['final'].GetMinimum()<hmin: hmin = hists['final'].GetMinimum()
   #hists['final'].GetXaxis().SetRangeUser(0,80) 
-  hists['final'].GetXaxis().SetRangeUser(23,47) #EF m=35
-  #hists['final'].GetXaxis().SetRangeUser(28,52) #EF m=40
+  #hists['final'].GetXaxis().SetRangeUser(18,42) #EF M30
+  hists['final'].GetXaxis().SetRangeUser(23,47) # DEF: M35
+  #hists['final'].GetXaxis().SetRangeUser(5,30) # M15
+  #hists['final'].GetXaxis().SetRangeUser(38,62) # M50
   #hists['final'].GetXaxis().SetRangeUser(115,140)
   #hists['final'].GetXaxis().SetRangeUser(100,150)
   # Create data histogram
   hists['data'] = ssf.xvar.createHistogram("h_data%s"%_extension,ROOT.RooFit.Binning(ssf.nBins))
-  ssf.DataHists['35'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar))  
-  #ssf.DataHists['40'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar))  
+  #ssf.DataHists['30'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar)) # DEF, M35 
+  #ssf.DataHists['15'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar)) # M15
+  #ssf.DataHists['50'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar)) # M50 
   #ssf.DataHists['125'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar))
   hists['data'].SetTitle("")
   hists['data'].GetXaxis().SetTitle("m_{#gamma#gamma} [GeV]")
   hists['data'].SetMinimum(0)
   #hists['data'].GetXaxis().SetRangeUser(0,80)
-  hists['data'].GetXaxis().SetRangeUser(23,47) #EF m=35
-  #hists['data'].GetXaxis().SetRangeUser(28,52) #EF m=40
+  #hists['data'].GetXaxis().SetRangeUser(18,42) #EF M30
+  hists['data'].GetXaxis().SetRangeUser(23,47) # DEF: M35
+  hists['data'].GetXaxis().SetRangeUser(5,30) # M15
+  #hists['data'].GetXaxis().SetRangeUser(38,62) # M50
   #hists['data'].GetXaxis().SetRangeUser(115,140)
   #hists['data'].GetXaxis().SetRangeUser(100,150)
   hists['data'].Scale(float(ssf.nBins)/800) #EF
@@ -298,8 +305,10 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
   canv.SaveAs("%s/%sshape_pdf_components_%s_%s.png"%(_outdir,_extension,_proc,_cat))
   canv.SaveAs("%s/%sshape_pdf_components_%s_%s.pdf"%(_outdir,_extension,_proc,_cat))
 
-# Plot final pdf for each mass point
-def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70'):
+# Plot final pdf for each mass point#d
+#def plotInterpolation(_finalModel,_outdir='./',_massPoints='30, 35, 40, 45, 50, 55, 60, 65, 70'):
+def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 30'):
+#def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70'):
 #def plotInterpolation(_finalModel,_outdir='./',_massPoints='120,121,122,123,124,125,126,127,128,129,130'):
 
   canv = ROOT.TCanvas("", "", 1200, 1000)
