@@ -32,7 +32,8 @@ using namespace RooFit;
 void extractParams(){
   //double massindex = 0;
   //const vector<int> v_massindex = {0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,   11,   12,  13 };
-  const vector<double> v_mass     = {5., 10., 15., 20., 25., 30., 35., 40., 45., 50., 55.,  60.,  65., 70.}; 
+  //const vector<double> v_mass     = {5., 10., 15., 20., 25., 30., 35., 40., 45., 50., 55.,  60.,  65., 70.}; 
+  const vector<double> v_mass     = { 10., 15., 20., 25., 30., 35., 40., 45., 50., 55.,  60.,  65., 70.}; 
 
   //INPUT FILE WITH HISTOGRAMS TO FIT SIGNAL
   TFile* sig_file = NULL; 

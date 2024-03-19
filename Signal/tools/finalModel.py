@@ -18,18 +18,18 @@ from HiggsAnalysis.CombinedLimit.ModelTools import *
 from HiggsAnalysis.CombinedLimit.PhysicsModel import *
 from HiggsAnalysis.CombinedLimit.SMHiggsBuilder import *
 import HiggsAnalysis.CombinedLimit.PhysicsModel as models
+
 class dummy_options:
   def __init__(self):
     self.physModel = "HiggsAnalysis.CombinedLimit.PhysicsModel:floatingHiggsMass"
-    self.physOpt = ["higgsMassRange=0,80"]
+    self.physOpt = ["higgsMassRange=10,70"]
     #self.physOpt = ["higgsMassRange=90,250"]
     self.bin = True
     self.fileName = "dummy.root"
     self.cexpr = False
     self.out = "wsdefault"
     self.verbose = 0
-    #self.mass = 50
-    self.mass = 15
+    self.mass = 40
     #self.mass = 125
     self.funcXSext = "dummy"
 
@@ -46,6 +46,7 @@ def initialiseXSBR():
   options=dummy_options()
   DC = Datacard()
   MB = ModelBuilder(DC, options)
+
   physics = models.floatingHiggsMass
   physics.setPhysicsOptions(options.physOpt)
   MB.setPhysics(physics)
@@ -65,7 +66,8 @@ def initialiseXSBR():
   xsbr['constant'] = []
   #mh = 120.
   #while( mh < 130.05 ):
-  mh = 5.
+  mh = 10.
+  #mh = 5.
   while( mh < 70.05 ):
     for pm in productionModes: xsbr[pm].append(getXS(SM,MHVar,mh,pm))
     xsbr[decayMode].append(getBR(SM,MHVar,mh,decayMode))
@@ -144,7 +146,8 @@ class FinalModel:
   def buildXSBRSplines(self):
     #mh = np.linspace(5.,80., 150) # Step of 0.5 GeV
     #mh = np.linspace(0.,80., 160) # Step of 0.5 GeV
-    mh = np.linspace(5.,70., 130) # Step of 0.5 GeV
+    #mh = np.linspace(30.,70., 80) # Step of 0.5 GeV #EF lowmass
+    mh = np.linspace(10., 70., 120) # Step of 0.5 GeV
     #mh = np.linspace(120.,130.,101)
     # XS
     fp = self.xsbrMap[self.proc]['factor'] if 'factor' in self.xsbrMap[self.proc] else 1.
@@ -170,6 +173,7 @@ class FinalModel:
     # Loop over mass points  
     ea, mh = [], []
     for mp in self.massPoints.split(","):
+      print("---------------------FINAL MODEL: mass ", mp)
       mh.append(float(mp))
       if self.doEffAccFromJson:
         jfname = "%s/outdir_%s/getEffAcc/json/effAcc_M%s_%s.json"%(swd__,self.ext,mp,self.ext)
@@ -182,11 +186,32 @@ class FinalModel:
         sumw = self.datasets[mp].sumEntries()
         self.MH.setVal(float(mp))
         xs,br = self.Splines['xs'].getVal(), self.Splines['br'].getVal()
-        #ea.append(sumw/(lumiScaleFactor*xs*br*1000*1.06))
+        #mass = [5,       10,      15,     20,      25,      30,      35,      40,      45,      50,      55,      60,      65,     70     ]
+        #genw = [3683.64, 2866.86, 2247.3, 1832.06, 1548.75, 1345.64, 1153.35, 1003.56, 881.809, 775.896, 683.226, 614.566, 560.66, 505.814]
+        #'5':3683.64,
+        genw_list = { 
+                     '10': 2866.86, 
+                     '15': 2247.3, 
+                     '20': 1832.06, 
+                     '25': 1548.75, 
+                     '30': 1345.64,                                                                          
+                     '35': 1153.35, 
+                     '40': 1003.56, 
+                     '45': 881.809, 
+                     '50': 775.896, 
+                     '55': 683.226, 
+                     '60': 614.566, 
+                     '65': 560.66, 
+                     '70': 505.814
+        }
+
         print "#######################################" 
-        print "Sum of weights = ", sumw 
-        print "sumw scaled standalone= ", sumw/(lumiScaleFactor*xs*br*1.06) 
-        ea.append(sumw/(lumiScaleFactor*xs*br*1.06)) 
+        print("Sum of weights = ", sumw )
+        genw = genw_list.get(str(mp), [])
+        print("genw = ", genw)
+        print "sumw scaled standalone= ", sumw/(xs*br*1.06*genw)
+        #ea.append(sumw/(lumiScaleFactor*xs*br*1000*1.06))
+        ea.append(sumw/(xs * br * 1.06 * genw * 1000)) 
     # If single mass point then add MHLow and MHHigh dummy points for constant ea
     if len(ea) == 1: ea, mh = [ea[0],ea[0],ea[0]], [float(self.MHLow),mh[0],float(self.MHHigh)]
     # Convert to numpy arrays and make spline
@@ -284,6 +309,7 @@ class FinalModel:
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   # Function to build final PDFs from input SimultaneousFit object splines
+  #def buildPdf(self,ssf,ext='',useDCB=False,_recursive=False):
   def buildPdf(self,ssf,ext='',useDCB=False,_recursive=True):
     extStr = "%s_%s"%(self.name,ext) if ext!='total' else '%s'%self.name
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

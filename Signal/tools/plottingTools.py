@@ -66,9 +66,10 @@ def getEffSigma(_h):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Ftest: plots
 # Plot possible nGauss fits and chi2 values
-def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='35'):
+#def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='35'):
+def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='40'):
 #def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='125'):
-  canv = ROOT.TCanvas("", "", 1200, 1000)
+  canv = ROOT.TCanvas("", "", 1200, 800)
   canv.SetLeftMargin(0.15)
   LineColorMap = {'1':ROOT.kAzure+1,'2':ROOT.kRed-4,'3':ROOT.kGreen+2,'4':ROOT.kMagenta-9,'5':ROOT.kOrange}
   pdfs = od()
@@ -77,8 +78,8 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='35'
   # Loop over nGauss fits
   for k,ssf in ssfs.iteritems():
     ssf.MH.setVal(int(_mass))
-    hists[k] = ssf.Pdfs['final'].createHistogram("h_%s_%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(800))
-    #hists[k] = ssf.Pdfs['final'].createHistogram("h_%s_%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1600))
+    #hists[k] = ssf.Pdfs['final'].createHistogram("h_%s_%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(800))
+    hists[k] = ssf.Pdfs['final'].createHistogram("h_%s_%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1600))
     if int(k.split("_")[-1]) == _opt: hists[k].SetLineWidth(3)
     else: hists[k].SetLineWidth(1)
     hists[k].SetLineColor(LineColorMap[k.split("_")[-1]])
@@ -87,21 +88,22 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='35'
     hists[k].SetMinimum(0)
     if hists[k].GetMaximum()>hmax: hmax = hists[k].GetMaximum()
     if hists[k].GetMinimum()<hmin: hmin = hists[k].GetMinimum()
-    hists[k].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*30/100),float(int(_mass)+int(_mass)*30/100))
+    hists[k].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*20/100),float(int(_mass)+int(_mass)*20/100))
+    #hists[k].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*30/100),float(int(_mass)+int(_mass)*30/100))
     #hists[k].GetXaxis().SetRangeUser(float(int(_mass)-2),float(int(_mass)+2))
     #hists[k].GetXaxis().SetRangeUser(115,140)
   # Extract data histogram
   hists['data'] = ssf.xvar.createHistogram("h_data%s"%_extension,ROOT.RooFit.Binning(ssf.nBins))
-  ssf.DataHists[_mass].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar))
-  hists['data'].Scale(float(ssf.nBins)/800) #EF
-  #hists['data'].Scale(float(ssf.nBins)/1600) EF
+  ssf.DataHists[str(int(_mass))].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar))
+  #hists['data'].Scale(float(ssf.nBins)/800) #EF
+  hists['data'].Scale(float(ssf.nBins)/1600) #EF
   hists['data'].SetMarkerStyle(20)
   hists['data'].SetMarkerColor(1)
   hists['data'].SetLineColor(1)
   hists['data'].SetTitle("")
   hists['data'].GetXaxis().SetTitle("m_{#gamma#gamma} [GeV]")
   hists['data'].SetMinimum(0)
-  hists['data'].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*30/100),float(int(_mass)+int(_mass)*30/100))
+  hists['data'].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*20/100),float(int(_mass)+int(_mass)*20/100))
   #hists['data'].GetXaxis().SetRangeUser(float(int(_mass)-2),float(int(_mass)+2))
   #hists['data'].GetXaxis().SetRangeUser(115,140)
   if hists['data'].GetMaximum()>hmax: hmax = hists['data'].GetMaximum()
@@ -116,7 +118,8 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='35'
     h.Draw("HIST SAME")
 
   # Legend & Text
-  leg = ROOT.TLegend(0.55,0.5,0.86,0.8)
+  leg = ROOT.TLegend(0.2,0.5,0.48,0.8)
+  #leg = ROOT.TLegend(0.55,0.5,0.86,0.8)
   leg.SetFillStyle(0)
   leg.SetLineColor(0)
   leg.SetTextSize(0.025)
@@ -138,10 +141,11 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='35'
   canv.SaveAs("%s/fTest_%s_%s_%s_M%s.pdf"%(_outdir,_cat,_proc,_extension,_mass))
 
 # Plot reduced chi2 vs nGauss
-def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='35'): # DEF, M35
+#def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='35'): # DEF, M35
+#def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='40'): # DEF, M40
 #def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='15'): # M15
-#def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='50'): # M50
 #def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='125'):
+def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass='40'): # lowmass DCB (all masses)
   canv = ROOT.TCanvas("", "", 1200, 1000)
   gr = ROOT.TGraph()
   # Loop over nGuassians
@@ -149,7 +153,7 @@ def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass
   xmax = 1
   ymax = -1
   for k,ssf in ssfs.iteritems():
-    ssf.MH.setVal(int(_mass))
+    ssf.MH.setVal(int(_mass)) 
     x = int(k.split("_")[-1])
     if x > xmax: xmax = x
     y = ssf.getReducedChi2()
@@ -192,20 +196,19 @@ def plotFTestResults(ssfs,_opt,_outdir="./",_extension='',_proc='',_cat='',_mass
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Signal fit plots
 # Plot final pdf at MH = 125 (with data) + individual Pdf components
-def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
+def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat='', _mass=''):
   canv = ROOT.TCanvas("", "", 1200, 1000)
   canv.SetLeftMargin(0.15)
-  ssf.MH.setVal(35) # DEF, M35
-  #ssf.MH.setVal(15) # M15
-  #ssf.MH.setVal(50) # M50
+  print("MH in plotPdfComponents is ", int(_mass))
+  ssf.MH.setVal(int(_mass))
   #ssf.MH.setVal(125)
   LineColorMap = {0:ROOT.kAzure+1,1:ROOT.kRed-4,2:ROOT.kOrange,3:ROOT.kGreen+2,4:ROOT.kMagenta-9}
   pdfs = od()
   hists = od()
   hmax, hmin = 0, 0
   # Total pdf histogram
-  hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(800))
-  #hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(1600))
+  #hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(800))
+  hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(1600))
   hists['final'].SetLineWidth(2)
   hists['final'].SetLineColor(1)
   hists['final'].SetTitle("")
@@ -213,31 +216,18 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
   hists['final'].SetMinimum(0)
   if hists['final'].GetMaximum()>hmax: hmax = hists['final'].GetMaximum()
   if hists['final'].GetMinimum()<hmin: hmin = hists['final'].GetMinimum()
-  #hists['final'].GetXaxis().SetRangeUser(0,80) 
-  #hists['final'].GetXaxis().SetRangeUser(18,42) #EF M30
-  hists['final'].GetXaxis().SetRangeUser(23,47) # DEF: M35
-  #hists['final'].GetXaxis().SetRangeUser(5,30) # M15
-  #hists['final'].GetXaxis().SetRangeUser(38,62) # M50
-  #hists['final'].GetXaxis().SetRangeUser(115,140)
-  #hists['final'].GetXaxis().SetRangeUser(100,150)
+  hists['final'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*20/100,int(_mass)+int(_mass)*20/100) 
+  #hists['final'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*30/100,int(_mass)+int(_mass)*30/100) 
   # Create data histogram
   hists['data'] = ssf.xvar.createHistogram("h_data%s"%_extension,ROOT.RooFit.Binning(ssf.nBins))
-  #ssf.DataHists['30'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar)) # DEF, M35 
-  #ssf.DataHists['15'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar)) # M15
-  #ssf.DataHists['50'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar)) # M50 
-  #ssf.DataHists['125'].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar))
+  ssf.DataHists[str(int(_mass))].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar)) 
   hists['data'].SetTitle("")
   hists['data'].GetXaxis().SetTitle("m_{#gamma#gamma} [GeV]")
   hists['data'].SetMinimum(0)
-  #hists['data'].GetXaxis().SetRangeUser(0,80)
-  #hists['data'].GetXaxis().SetRangeUser(18,42) #EF M30
-  hists['data'].GetXaxis().SetRangeUser(23,47) # DEF: M35
-  hists['data'].GetXaxis().SetRangeUser(5,30) # M15
-  #hists['data'].GetXaxis().SetRangeUser(38,62) # M50
-  #hists['data'].GetXaxis().SetRangeUser(115,140)
-  #hists['data'].GetXaxis().SetRangeUser(100,150)
-  hists['data'].Scale(float(ssf.nBins)/800) #EF
-  #hists['data'].Scale(float(ssf.nBins)/1600)
+  hists['data'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*20/100,int(_mass)+int(_mass)*20/100) 
+  #hists['data'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*30/100,int(_mass)+int(_mass)*30/100) 
+  #hists['data'].Scale(float(ssf.nBins)/800) #EF
+  hists['data'].Scale(float(ssf.nBins)/1600)
   hists['data'].SetMarkerStyle(20)
   hists['data'].SetMarkerColor(1)
   hists['data'].SetLineColor(1)
@@ -261,8 +251,8 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
       else:
 	frac = ssf.Pdfs['final'].getComponents().getRealValue("%s_%s_recursive_fraction_%s"%(ssf.proc,ssf.cat,k))
       # Create histogram with 1600 bins
-      hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(800)) #EF
-      #hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1600))
+      #hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(800)) #EF
+      hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1600))
       hists[k].Scale(frac)
       hists[k].SetLineColor(LineColorMap[pdfItr])
       hists[k].SetLineWidth(2)
@@ -273,7 +263,7 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
   #canv.SetLogy()
 
   # Add legend
-  leg = ROOT.TLegend(0.58,0.6,0.86,0.8)
+  leg = ROOT.TLegend(0.6,0.7,0.8,0.85)
   leg.SetFillStyle(0)
   leg.SetLineColor(0)
   leg.SetTextSize(0.04)
@@ -281,7 +271,7 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
   leg.AddEntry(hists['final'],"Parametric Model","L")
   leg.Draw("Same")
   if len(pdfs.keys())!=1:
-    leg1 = ROOT.TLegend(0.6,0.4,0.86,0.6)
+    leg1 = ROOT.TLegend(0.6,0.55,0.8,0.7)
     leg1.SetFillStyle(0)
     leg1.SetLineColor(0)
     leg1.SetTextSize(0.035)
@@ -299,19 +289,21 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat=''):
   lat1.SetTextAlign(11)
   lat1.SetNDC()
   lat1.SetTextSize(0.035)
-  lat1.DrawLatex(0.65,0.3,"#chi^{2}/n(dof) = %.4f"%(ssf.getChi2()/ssf.Ndof))
+  lat1.DrawLatex(0.65,0.45,"#chi^{2}/n(dof) = %.4f"%(ssf.getChi2()/ssf.Ndof))
 
   canv.Update()
   canv.SaveAs("%s/%sshape_pdf_components_%s_%s.png"%(_outdir,_extension,_proc,_cat))
   canv.SaveAs("%s/%sshape_pdf_components_%s_%s.pdf"%(_outdir,_extension,_proc,_cat))
 
 # Plot final pdf for each mass point#d
-#def plotInterpolation(_finalModel,_outdir='./',_massPoints='30, 35, 40, 45, 50, 55, 60, 65, 70'):
-def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 30'):
+#def plotInterpolation(_finalModel,_outdir='./',_massPoints='30, 35, 40, 45, 50, 55, 60, 65, 70'): #M50
+#def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 30'): #M15
+def plotInterpolation(_finalModel,_outdir='./',_massPoints='10,15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70'):
 #def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70'):
 #def plotInterpolation(_finalModel,_outdir='./',_massPoints='120,121,122,123,124,125,126,127,128,129,130'):
 
   canv = ROOT.TCanvas("", "", 1200, 1000)
+  canv.SetLeftMargin(1.9)
   colors = [ROOT.kRed,ROOT.kOrange-3,ROOT.kMagenta+3,ROOT.kMagenta-7,ROOT.kCyan,ROOT.kBlue+1,ROOT.kAzure+1,ROOT.kAzure-3,ROOT.kGreen+1,ROOT.kGreen-4,ROOT.kYellow-7,ROOT.kViolet+6,ROOT.kTeal+1,ROOT.kPink+1]
   colorMap = {}
   for i, mp in enumerate(_massPoints.split(",")): colorMap[mp] = colors[i]
@@ -323,8 +315,8 @@ def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 3
   hmax = 0.0001 
   for mp in _massPoints.split(","):
     _finalModel.MH.setVal(int(mp))
-    hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(800)) # EF
-    #hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(1600)) 
+    #hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(800)) # EF
+    hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(1600)) 
     norm = _finalModel.Functions['final_normThisLumi'].getVal()
     if norm == 0.: hists[mp].Scale(0.)
     else: 
@@ -365,6 +357,7 @@ def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 3
   haxes = hists[hists.keys()[0]].Clone()
   haxes.GetXaxis().SetTitle("m_{#gamma#gamma} [GeV]")
   haxes.GetYaxis().SetTitle("Events / %.2f GeV"%((_finalModel.xvar.getMax()-_finalModel.xvar.getMin())/_finalModel.xvar.getBins()))
+  haxes.GetYaxis().SetTitleOffset(1.5)
   haxes.SetMinimum(0)
   haxes.SetMaximum(hmax*1.2)
   haxes.GetXaxis().SetRangeUser(0,80)
@@ -395,8 +388,8 @@ def plotInterpolation(_finalModel,_outdir='./',_massPoints='5, 10, 15, 20, 25, 3
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Plot splines
-def plotSplines(_finalModel,_outdir="./",_nominalMass='35',splinesToPlot=['xs','br','ea']):
-#def plotSplines(_finalModel,_outdir="./",_nominalMass='40',splinesToPlot=['xs','br','ea']):
+#def plotSplines(_finalModel,_outdir="./",_nominalMass='',splinesToPlot=['xs','br','ea']):
+def plotSplines(_finalModel,_outdir="./",_nominalMass='40',splinesToPlot=['xs','br','ea']):
 #def plotSplines(_finalModel,_outdir="./",_nominalMass='35',splinesToPlot=['xs','br','ea','fracRV']):
 #def plotSplines(_finalModel,_outdir="./",_nominalMass='125',splinesToPlot=['xs','br','ea','fracRV']):
   canv = ROOT.TCanvas("", "", 1200, 1000)
@@ -407,7 +400,7 @@ def plotSplines(_finalModel,_outdir="./",_nominalMass='35',splinesToPlot=['xs','
       grs[sp] = ROOT.TGraph()
   # Get value at nominal mass
   xnom = od()
-  _finalModel.MH.setVal(float(_nominalMass))
+  _finalModel.MH.setVal(int(_nominalMass))
   for sp in splinesToPlot: 
       xnom[sp] = _finalModel.Splines[sp].getVal()
       print "xnom ", sp, " = ", xnom[sp]
@@ -442,16 +435,14 @@ def plotSplines(_finalModel,_outdir="./",_nominalMass='35',splinesToPlot=['xs','
   haxes.GetXaxis().SetTitleSize(0.05)
   haxes.GetXaxis().SetTitleOffset(0.85)
   haxes.GetXaxis().SetLabelSize(0.035)
-  haxes.GetYaxis().SetTitle("X/X(m_{H}=35)")
-  #haxes.GetYaxis().SetTitle("X/X(m_{H}=40)")
-  #haxes.GetYaxis().SetTitle("X/X(m_{H}=125)")
+  haxes.GetYaxis().SetTitle("X/X(m_{H}= @%s)"%(_nominalMass))
   haxes.GetYaxis().SetTitleOffset(0.85)
   haxes.GetYaxis().SetTitleSize(0.05)
   haxes.SetMaximum(1.2*xmax)
   haxes.SetMinimum(xmin)
   haxes.Draw()
   # Define legend
-  leg = ROOT.TLegend(0.15,0.15,0.4,0.4)
+  leg = ROOT.TLegend(0.15,0.55,0.4,0.85)
   leg.SetFillStyle(0)
   leg.SetLineColor(0)
   leg.SetTextSize(0.04)
@@ -493,7 +484,7 @@ def plotSignalModel(_hists,_opt,_outdir=".",offset=0.02):
   h_axes.Reset()
   h_axes.SetMaximum(_hists['data'].GetMaximum()*1.2)
   h_axes.SetMinimum(0.)
-  h_axes.GetXaxis().SetRangeUser(0,80)
+  h_axes.GetXaxis().SetRangeUser(5,80)
   #h_axes.GetXaxis().SetRangeUser(105,140)
   h_axes.SetTitle("")
   h_axes.GetXaxis().SetTitle("%s (%s)"%(_opt.xvar.split(":")[1],_opt.xvar.split(":")[2]))

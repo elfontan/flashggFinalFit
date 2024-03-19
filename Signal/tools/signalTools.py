@@ -19,8 +19,8 @@ def splitRVWV(_d,_argset,mode="RV"):
 
   # Note that for the lowmass analysis the splitting is not taken into account
   # --------------------------------------------------------------------------
-  if mode == "RV": return _d.reduce(_argset,"abs(dZ)<=100.")
-  elif mode == "WV": return _d.reduce(_argset,"abs(dZ)>100.")
+  if mode == "RV": return _d.reduce(_argset,"abs(dZ0)<=100.") #FIXME: temporarily dZ0
+  elif mode == "WV": return _d.reduce(_argset,"abs(dZ0)>100.") #FIXME: temporarily dZ0
   # Temporary usage of vtxdz to substitute dZ missing in the samples
   # ----------------------------------------------------------------
   #if mode == "RV": 
@@ -38,7 +38,7 @@ def beamspotReweigh(d,widthData,widthMC,_xvar,_dZ,_x='CMS_hgg_mass',preserveNorm
   rw = ROOT.RooRealVar("weight","weight",-100000,1000000)
   for i in range(0,d.numEntries()):
     #x, dz = d.get(i).getRealValue(_x), d.get(i).getRealValue("vtxdz")    
-    x, dz = d.get(i).getRealValue(_x), d.get(i).getRealValue("dZ")
+    x, dz = d.get(i).getRealValue(_x), d.get(i).getRealValue("dZ0") #FIXME: temporarily dZ0
     f = 1.
     if abs(dz) < 0.1: f = 1.
     else:
@@ -58,7 +58,7 @@ def beamspotReweigh(d,widthData,widthMC,_xvar,_dZ,_x='CMS_hgg_mass',preserveNorm
     drw_pn = d.emptyClone()
     for i in range(0,drw.numEntries()):
       #x, dz = drw.get(i).getRealValue(_x), drw.get(i).getRealValue("vtxdz")
-      x, dz = drw.get(i).getRealValue(_x), drw.get(i).getRealValue("dZ")
+      x, dz = drw.get(i).getRealValue(_x), drw.get(i).getRealValue("dZ0") #FIXME: temporarily dZ0
       f = isumw/fsumw if fsumw!=0. else 1.
       rw.setVal(f*drw.weight())
       _xvar.setVal(x)

@@ -61,7 +61,7 @@ inputWS0 = f0.Get(inputWSName__)
 xvar = inputWS0.var(opt.xvar)
 xvarFit = xvar.Clone()
 #dZ = inputWS0.var("vtxdz")
-dZ = inputWS0.var("dZ")
+dZ = inputWS0.var("dZ0") #FIXME: temporarily dZ0 
 aset = ROOT.RooArgSet(xvar,dZ)
 f0.Close()
 
@@ -125,11 +125,12 @@ for pidx, proc in enumerate(procsToFTest):
     for nGauss in range(1,opt.nGaussMax+1):
       k = "nGauss_%g"%nGauss
       #ssf = SimultaneousFit("fTest_RV_%g"%nGauss,proc,opt.cat,datasets_RV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=False)
-
       ssf = SimultaneousFit("fTest_RV_%g"%nGauss,proc,opt.cat,datasets_RV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=False)
-      ssf.buildNGaussians(nGauss)
+      ssf.buildNGaussians(nGauss, MHLow,MHHigh)
+      #ssf.buildNGaussians(nGauss)
       ssf.runFit()
-      ssf.buildSplines()
+      #ssf.buildSplines()
+      ssf.buildSplines(MHLow,MHHigh)
       if ssf.Ndof >= 1: 
 	ssfs[k] = ssf
 	if ssfs[k].getReducedChi2() < min_reduced_chi2: 
@@ -152,9 +153,11 @@ for pidx, proc in enumerate(procsToFTest):
     for nGauss in range(1,opt.nGaussMax+1):
       k = "nGauss_%g"%nGauss
       ssf = SimultaneousFit("fTest_WV_%g"%nGauss,proc,opt.cat,datasets_WV,xvar.Clone(),MH,MHLow,MHHigh,opt.mass,opt.nBins,0,opt.minimizerMethod,opt.minimizerTolerance,verbose=False)
-      ssf.buildNGaussians(nGauss)
+      #ssf.buildNGaussians(nGauss)
+      ssf.buildNGaussians(nGauss, MHLow,MHHigh)
       ssf.runFit()
-      ssf.buildSplines()
+      ssf.buildSplines(MHLow,MHHigh)
+      #ssf.buildSplines()
       if ssf.Ndof >= 1:
 	ssfs[k] = ssf
 	if ssfs[k].getReducedChi2() < min_reduced_chi2:

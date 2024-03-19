@@ -19,14 +19,6 @@ from simultaneousFit import *
 from finalModel import *
 from plottingTools import *
 
-# Constant
-#MHLow, MHHigh = '30', '70'
-#MHNominal = '50'
-MHLow, MHHigh = '5', '30'
-MHNominal = '15'
-#MHLow, MHHigh = '120', '130'
-#MHNominal = '125'
-
 def leave():
   print "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ HGG SIGNAL FITTER (END) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ "
   exit()
@@ -40,7 +32,9 @@ def get_options():
   parser.add_option("--cat", dest='cat', default='', help="RECO category")
   parser.add_option("--year", dest='year', default='2016', help="Year")
   parser.add_option("--analysis", dest='analysis', default='STXS', help="Analysis handle: used to specify replacement map and XS*BR normalisations")
-  parser.add_option('--massPoints', dest='massPoints', default='5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70', help="Mass points to fit")
+  parser.add_option('--massPoints', dest='massPoints', default='10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70', help="Mass points to fit")
+  parser.add_option('--minMass', dest='minMass', default='10', help="Lowest mass point considered")
+  parser.add_option('--maxMass', dest='maxMass', default='70', help="Highest mass point considered")
   #parser.add_option('--massPoints', dest='massPoints', default='20, 30, 40', help="Mass points to fit")
   #parser.add_option('--massPoints', dest='massPoints', default='120,125,130', help="Mass points to fit")
   parser.add_option('--doEffAccFromJson', dest='doEffAccFromJson', default=False, action="store_true", help="Extract eff x acc from json (produced by getEffAcc). Else, extract from nominal weights in flashgg workspaces")
@@ -75,6 +69,25 @@ ROOT.gStyle.SetOptStat(0)
 ROOT.gROOT.SetBatch(True)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Constant
+#MHLow, MHHigh = '30', '70'
+#MHNominal = '50'
+MHLow = opt.minMass
+MHHigh = opt.maxMass
+print("MHLow", opt.minMass)
+print("MHHigh", opt.maxMass)
+
+MHNominal = '40'
+#if (int(MHLow) == 10 and int(MHHigh) == 70):
+#  MHNominal = '40'
+#elif (int(MHHigh) < 30):
+#  MHNominal = '15'
+#elif (int(MHHigh) >= 30):
+#  MHNominal = '50'
+#else:
+#  MHNominal = str((int(MHHigh) + int(MHLow))/2)
+print("MHNominal", MHNominal)
+
 # SETUP: signal fit
 print " --> Running fit for (proc,cat) = (%s,%s)"%(opt.proc,opt.cat)
 if( len(opt.massPoints.split(",")) == 1 )&( opt.MHPolyOrder > 0 ):
@@ -105,7 +118,7 @@ inputWS0 = f0.Get(inputWSName__)
 xvar = inputWS0.var(opt.xvar)
 xvarFit = xvar.Clone()
 #dZ = inputWS0.var("vtxdz")
-dZ = inputWS0.var("dZ")
+dZ = inputWS0.var("dZ0") #FIXME: temporary dZ0
 aset = ROOT.RooArgSet(xvar,dZ)
 f0.Close()
 
@@ -311,18 +324,19 @@ name = "Total" if opt.skipVertexScenarioSplit else "RV"
 ssfRV = SimultaneousFit(name,opt.proc,opt.cat,datasetRVForFit,xvar.Clone(),MH,MHLow,MHHigh,opt.massPoints,opt.nBins,opt.MHPolyOrder,opt.minimizerMethod,opt.minimizerTolerance)
 
 if opt.useDCB: ssfRV.buildDCBplusGaussian()
-else: ssfRV.buildNGaussians(nRV)
+#else: ssfRV.buildNGaussians(nRV)
+else: ssfRV.buildNGaussians(nRV,MHLow,MHHigh)
 ssfRV.runFit()
-ssfRV.buildSplines()
+ssfRV.buildSplines(MHLow,MHHigh)
 ssfMap[name] = ssfRV
 
 if not opt.skipVertexScenarioSplit:
   name = "WV"
   ssfWV = SimultaneousFit(name,opt.proc,opt.cat,datasetWVForFit,xvar.Clone(),MH,MHLow,MHHigh,opt.massPoints,opt.nBins,opt.MHPolyOrder,opt.minimizerMethod,opt.minimizerTolerance)
   if opt.useDCB: ssfWV.buildDCBplusGaussian()
-  else: ssfWV.buildNGaussians(nWV)
+  else: ssfWV.buildNGaussians(nWV,MHLow,MHHigh)
   ssfWV.runFit()
-  ssfWV.buildSplines()
+  ssfWV.buildSplines(MHLow,MHHigh)
   ssfMap[name] = ssfWV
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -348,10 +362,10 @@ if opt.doPlots:
   print "\n --> Making plots..."
   if not os.path.isdir("%s/outdir_%s/signalFit/Plots"%(swd__,opt.ext)): os.system("mkdir %s/outdir_%s/signalFit/Plots"%(swd__,opt.ext))
   if opt.skipVertexScenarioSplit:
-    plotPdfComponents(ssfRV,_outdir="%s/outdir_%s/signalFit/Plots"%(swd__,opt.ext),_extension="total_",_proc=procRVFit,_cat=catRVFit) 
+    plotPdfComponents(ssfRV,_outdir="%s/outdir_%s/signalFit/Plots"%(swd__,opt.ext),_extension="total_",_proc=procRVFit,_cat=catRVFit, _mass=float(MHNominal)) 
   if not opt.skipVertexScenarioSplit:
-    plotPdfComponents(ssfRV,_outdir="%s/outdir_%s/signalFit/Plots"%(swd__,opt.ext),_extension="RV_",_proc=procRVFit,_cat=catRVFit) 
-    plotPdfComponents(ssfWV,_outdir="%s/outdir_%s/signalFit/Plots"%(swd__,opt.ext),_extension="WV_",_proc=procWVFit,_cat=catRVFit) 
+    plotPdfComponents(ssfRV,_outdir="%s/outdir_%s/signalFit/Plots"%(swd__,opt.ext),_extension="RV_",_proc=procRVFit,_cat=catRVFit, _mass=float(MHNominal)) 
+    plotPdfComponents(ssfWV,_outdir="%s/outdir_%s/signalFit/Plots"%(swd__,opt.ext),_extension="WV_",_proc=procWVFit,_cat=catRVFit, _mass=float(MHNominal)) 
   # Plot interpolation
   plotInterpolation(fm,_outdir="%s/outdir_%s/signalFit/Plots"%(swd__,opt.ext)) 
   plotSplines(fm,_outdir="%s/outdir_%s/signalFit/Plots"%(swd__,opt.ext),_nominalMass=MHNominal) 
