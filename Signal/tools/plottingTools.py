@@ -88,22 +88,22 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='40'
     hists[k].SetMinimum(0)
     if hists[k].GetMaximum()>hmax: hmax = hists[k].GetMaximum()
     if hists[k].GetMinimum()<hmin: hmin = hists[k].GetMinimum()
-    hists[k].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*20/100),float(int(_mass)+int(_mass)*20/100))
+    hists[k].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*10/100),float(int(_mass)+int(_mass)*10/100))
     #hists[k].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*30/100),float(int(_mass)+int(_mass)*30/100))
     #hists[k].GetXaxis().SetRangeUser(float(int(_mass)-2),float(int(_mass)+2))
     #hists[k].GetXaxis().SetRangeUser(115,140)
   # Extract data histogram
   hists['data'] = ssf.xvar.createHistogram("h_data%s"%_extension,ROOT.RooFit.Binning(ssf.nBins))
   ssf.DataHists[str(int(_mass))].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar))
-  #hists['data'].Scale(float(ssf.nBins)/800) #EF
-  hists['data'].Scale(float(ssf.nBins)/1600) #EF
+  hists['data'].Scale(float(ssf.nBins)/800) #EF
+  #hists['data'].Scale(float(ssf.nBins)/1600) #EF
   hists['data'].SetMarkerStyle(20)
   hists['data'].SetMarkerColor(1)
   hists['data'].SetLineColor(1)
   hists['data'].SetTitle("")
   hists['data'].GetXaxis().SetTitle("m_{#gamma#gamma} [GeV]")
   hists['data'].SetMinimum(0)
-  hists['data'].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*20/100),float(int(_mass)+int(_mass)*20/100))
+  hists['data'].GetXaxis().SetRangeUser(float(int(_mass)-int(_mass)*10/100),float(int(_mass)+int(_mass)*10/100))
   #hists['data'].GetXaxis().SetRangeUser(float(int(_mass)-2),float(int(_mass)+2))
   #hists['data'].GetXaxis().SetRangeUser(115,140)
   if hists['data'].GetMaximum()>hmax: hmax = hists['data'].GetMaximum()
@@ -202,21 +202,23 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat='', _mass='')
   print("MH in plotPdfComponents is ", int(_mass))
   ssf.MH.setVal(int(_mass))
   #ssf.MH.setVal(125)
-  LineColorMap = {0:ROOT.kAzure+1,1:ROOT.kRed-4,2:ROOT.kOrange,3:ROOT.kGreen+2,4:ROOT.kMagenta-9}
+  LineColorMap = {0:ROOT.kMagenta-7,1:ROOT.kCyan,2:ROOT.kBlue+1}
+  #LineColorMap = {0:ROOT.kAzure+1,1:ROOT.kRed-4,2:ROOT.kOrange,3:ROOT.kGreen+2,4:ROOT.kMagenta-9}
   pdfs = od()
   hists = od()
   hmax, hmin = 0, 0
   # Total pdf histogram
-  #hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(800))
-  hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(1600))
-  hists['final'].SetLineWidth(2)
-  hists['final'].SetLineColor(1)
+  hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(800))
+  #hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(1600))
+  hists['final'].SetLineWidth(3)
+  hists['final'].SetLineColor(ROOT.kBlue+1)
+  #hists['final'].SetLineColor(1)
   hists['final'].SetTitle("")
   hists['final'].GetXaxis().SetTitle("m_{#gamma#gamma} [GeV]")
   hists['final'].SetMinimum(0)
   if hists['final'].GetMaximum()>hmax: hmax = hists['final'].GetMaximum()
   if hists['final'].GetMinimum()<hmin: hmin = hists['final'].GetMinimum()
-  hists['final'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*20/100,int(_mass)+int(_mass)*20/100) 
+  hists['final'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*10/100,int(_mass)+int(_mass)*10/100) 
   #hists['final'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*30/100,int(_mass)+int(_mass)*30/100) 
   # Create data histogram
   hists['data'] = ssf.xvar.createHistogram("h_data%s"%_extension,ROOT.RooFit.Binning(ssf.nBins))
@@ -224,10 +226,10 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat='', _mass='')
   hists['data'].SetTitle("")
   hists['data'].GetXaxis().SetTitle("m_{#gamma#gamma} [GeV]")
   hists['data'].SetMinimum(0)
-  hists['data'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*20/100,int(_mass)+int(_mass)*20/100) 
+  hists['data'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*10/100,int(_mass)+int(_mass)*10/100) 
   #hists['data'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*30/100,int(_mass)+int(_mass)*30/100) 
-  #hists['data'].Scale(float(ssf.nBins)/800) #EF
-  hists['data'].Scale(float(ssf.nBins)/1600)
+  hists['data'].Scale(float(ssf.nBins)/800) #EF
+  #hists['data'].Scale(float(ssf.nBins)/1600)
   hists['data'].SetMarkerStyle(20)
   hists['data'].SetMarkerColor(1)
   hists['data'].SetLineColor(1)
@@ -251,11 +253,11 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat='', _mass='')
       else:
 	frac = ssf.Pdfs['final'].getComponents().getRealValue("%s_%s_recursive_fraction_%s"%(ssf.proc,ssf.cat,k))
       # Create histogram with 1600 bins
-      #hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(800)) #EF
-      hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1600))
+      hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(800)) #EF
+      #hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1600))
       hists[k].Scale(frac)
       hists[k].SetLineColor(LineColorMap[pdfItr])
-      hists[k].SetLineWidth(2)
+      hists[k].SetLineWidth(3)
       hists[k].SetLineStyle(2)
       hists[k].Draw("HIST SAME")
       pdfItr += 1
@@ -315,8 +317,8 @@ def plotInterpolation(_finalModel,_outdir='./',_massPoints='10,15, 20, 25, 30, 3
   hmax = 0.0001 
   for mp in _massPoints.split(","):
     _finalModel.MH.setVal(int(mp))
-    #hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(800)) # EF
-    hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(1600)) 
+    hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(800)) # EF
+    #hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(1600)) 
     norm = _finalModel.Functions['final_normThisLumi'].getVal()
     if norm == 0.: hists[mp].Scale(0.)
     else: 
