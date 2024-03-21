@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import argparse
 import sys
 import os
+from matplotlib.ticker import ScalarFormatter
 
 ROOT.gROOT.SetBatch()
 ROOT.gStyle.SetOptStat(0)
@@ -25,10 +26,13 @@ wFile = args.w
 
 
 def plot(mhs, vals, spline_name):
+  #fig, ax = plt.subplots(figsize=(12, 8))
+  #fig.patch.set_facecolor('white')
   plt.scatter(mhs, vals)
   plt.style.use('classic')
-  plt.xlabel(r"$m_{\gamma\gamma}$ [GeV]", fontsize=18)
+  plt.xlabel(r"$m_{\gamma\gamma}$ [GeV]", fontsize=18, x=0.9, y=1)
   plt.ylabel(spline_name, fontsize=14)
+  plt.gca().yaxis.set_major_formatter(ScalarFormatter(useMathText=True, useOffset=False))
 
   if (cat == "cat0"):
     plt.plot([mhs[0], mhs[-1]], [vals[0], vals[-1]], color="royalblue", label='Category 0')
@@ -37,13 +41,19 @@ def plot(mhs, vals, spline_name):
 
   #plt.style.use(hep.style.ROOT)
   #hep.cms.label("Preliminary", data=False)
-  plt.title("CMS Simulation Preliminary", fontsize=22, loc='left')
   plt.title("13 TeV", fontsize=22, loc='right')
-  #plt.title("CMS Simulation Preliminary                13 TeV", fontsize=14, loc='right')
-  plt.legend(loc='lower right', frameon=False, fontsize=18)
-  #plt.legend(loc='upper left', frameon=False, fontsize=18)
-  #plt.legend(loc='upper center', frameon=False, fontsize=18)
+  plt.title(r"\textbf{CMS} \textit{Simulation Preliminary}", fontsize=22, loc='left', usetex=True)
+  plt.legend(loc='lower right', frameon=False, fontsize=18) #loc='upper left','upper center'
+
+  max_val_y = max(vals)
+  min_val_y = min(vals)  
+  range_val_y = max_val_y - min_val_y  
+  new_max_y = max_val_y + 0.2 * range_val_y
+  new_min_y = min_val_y - 0.2 * range_val_y
+  plt.ylim(new_min_y, new_max_y)
+
   plt.savefig(outdir+"/%s.png"%spline_name)
+  plt.savefig(outdir+"/%s.pdf"%spline_name)
   plt.clf()
 
 #f = ROOT.TFile(sys.argv[1],"read")

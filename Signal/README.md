@@ -6,25 +6,33 @@ There are a number of steps to perform when constructing the signal model (descr
 # Config file: options for signal fitting
 
 signalScriptCfg = {
-  
-  # Setup
-  'inputWSDir':'/vols/cms/jl2117/hgg/ws/UL/Sept20/MC_final/signal_2016', # dir storing flashgg workspaces
-  'procs':'auto', # if auto: inferred automatically from filenames (requires names to be of from *pythia8_{PROC}.root)
-  'cats':'auto', # if auto: inferred automatically from (0) workspace
-  'ext':'test_2016', # output directory extension
-  'analysis':'example', # To specify replacement dataset and XS*BR mapping (defined in ./tools/replacementMap.py and ./tools/XSBRMap.py respectively)
-  'year':'2016', # Use 'combined' if merging all years: not recommended
-  'massPoints':'120,125,130', # You can now run with a single mass point if necessary
 
-  #Photon shape systematics  
-  'scales':'HighR9EB,HighR9EE,LowR9EB,LowR9EE,Gain1EB,Gain6EB', # separate nuisance per year
-  'scalesCorr':'MaterialCentralBarrel,MaterialOuterBarrel,MaterialForward,FNUFEE,FNUFEB,ShowerShapeHighR9EE,ShowerShapeHighR9EB,ShowerShapeLowR9EE,ShowerShapeLowR9EB', # correlated across years
-  'scalesGlobal':'NonLinearity,Geant4', # affect all processes equally, correlated across years
-  'smears':'HighR9EBPhi,HighR9EBRho,HighR9EEPhi,HighR9EERho,LowR9EBPhi,LowR9EBRho,LowR9EEPhi,LowR9EERho', # separate nuisance per year
+    # Setup                                                                                                                             
+    'inputWSDir':'/afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/Sep2023_flashGG/FLASHGGFINALFIT/CMSSW_10_2_13/src/flashggFinalFit/Signal/Jan2024_newSignalNtuples_ggH_pNN_cat_NN0p907_%s'%_year,
+    'procs':'auto', # if auto: inferred automatically from filenames                                                                                        
+    'cats':'auto', # if auto: inferred automatically from (0) workspace                                                                         
+    'ext':'V2_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_%s'%_year,
+    'analysis':'lowMassAnalysis', # To specify which replacement dataset mapping (defined in ./tools/replacementMap.py</pre>)                    
+    'year':'%s'%_year, # Use 'combined' if merging all years: not recommended                                                      
+    'massPoints':'10,15,20,25,30,35,40,45,50,55,60,65,70',
 
-  # Job submission options
-  'batch':'condor', # ['condor','SGE','IC','local']
-  'queue':'espresso' # use hep.q for IC
+    # Additional option for the fit: --useDCB (by default it is false)                                                                                               
+    # Use DCB + 1 Gaussian as pdf instead of N Gaussians                                                                      
+    '--useDCB': 1,                                                                                                                                                   
+
+    #Photon shape systematics                                                                                                        
+    'scales':'', # separate nuisance per year                                                                                                  
+    'scalesCorr':'', # correlated across years                                                                                                    
+    'scalesGlobal':'', # affect all processes equally, correlated across years                                                                   
+    'smears':'', # separate nuisance per year                                                                                                    
+    #'scales':'HighR9EB,HighR9EE,LowR9EB,LowR9EE,Gain1EB,Gain6EB', # separate nuisance per year                                            
+    #'scalesCorr':'MaterialCentralBarrel,MaterialOuterBarrel,MaterialForward,FNUFEE,FNUFEB,ShowerShapeHighR9EE,ShowerShapeHighR9EB,ShowerShapeLowR9EE,ShowerShapeLowR9EB', # correlated across years                                                                                                              
+    #'scalesGlobal':'NonLinearity,Geant4', # affect all processes equally, correlated across years                                                 
+    #'smears':'HighR9EBPhi,HighR9EBRho,HighR9EEPhi,HighR9EERho,LowR9EBPhi,LowR9EBRho,LowR9EEPhi,LowR9EERho', # separate nuisance per year        
+
+    # Job submission options                                                                                                        
+    'batch':'condor', # ['condor','SGE','IC','local']                                                                  
+    'queue':'espresso',
 
 }
 ```
@@ -34,7 +42,26 @@ python RunSignalScripts.py --inputConfig {config_file}.py --mode {mode} --modeOp
 ```
 To simply print the job scripts without submitting then add the option: `--printOnly`. You can then go to the respective `outdir_{ext}/{mode}/jobs` directory to run the individual scripts locally (great for testing and debugging!)
 
+Latest example for running the signal modelling for the very low mass analysis based on a Double Crystal Ball plus Gaussian function is the following:
+```
+python RunSignalScripts.py --inputConfig Jan2024_config_lowMassAnalysis_2018.py --mode signalFit --modeOpts " --doPlots " --printOnly
+```
+resulting in a similar execution command:
+```
+python /afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/Sep2023_flashGG/FLASHGGFINALFIT/CMSSW_10_2_13/src/flashggFinalFit/Signal/scripts/signalFit.py --inputWSDir /afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/Sep2023_flashGG/FLASHGGFINALFIT/CMSSW_10_2_13/src/flashggFinalFit/Signal/March2024_newSignalNtuples_ggH_pNN_cat_NN0p907_2018 --ext Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018 --proc GG2H --cat UntaggedTag_0 --year 2018 --analysis lowMassAnalysis --massPoints 10,15,20,25,30,35,40,45,50,55,60,65,70 --scales '' --scalesCorr '' --scalesGlobal '' --smears ''  --doPlots  --useDCB --skipSystematics --skipVertexScenario --skipBeamspotReweigh --minMass 10 --maxMass 70
+```
+
+The output workspace resulting from the parametric model is saved in outputdir/signalFit/output/*root. You can check the content by running the following command:
+```
+python  utils_simpleFits/plot_spline_dcb.py --w outdir_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018/signalFit/output/CMS-HGG_sigfit_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018_GG2H_2018_UntaggedTag_0.root --c cat0 --outdir /eos/user/e/elfontan/www/LowMassDiPhoton/diphotonBDT/ParametricBDT/TensorFlow/SignalModeling/newNtuples_newTraining_NN0p907/paramModel/
+
+python  utils_simpleFits/plot_spline_dcb.py --w outdir_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018/signalFit/output/CMS-HGG_sigfit_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018_GG2H_2018_UntaggedTag_1.root --c cat1 --outdir /eos/user/e/elfontan/www/LowMassDiPhoton/diphotonBDT/ParametricBDT/TensorFlow/SignalModeling/newNtuples_newTraining_NN0p907/paramModel/
+```
+
+
+
 In this new final fits package we have introduced a number of additional options which were not previously available. Firstly, you can now run the signal model for a single mass point: the polynominal defining the mass dependence on the fit parameters is set to a constant. Additionally, you can skip the splitting into the right vertex (RV) and wrong vertex (WV) scenarios (in fact the fraction of WV events for anything but ggH 0J is ~0, so the general rule of thumb is that it is okay to skip the splitting). In the new package the minimizer has been replaced with `scipy.minimize`, which means we no longer require the specialised ROOT class for the simultaneous signal fit for different mass points. For developers of this package you can find the Python class which performs the signal fit in `tools.simultaneousFit`. A simple application of this is shown in `simpleFit.py`. The construction of the final signal model is done using the Python class in `tools.finalModel.py`
+
 
 ## Signal F-test
 
