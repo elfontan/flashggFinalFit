@@ -53,9 +53,12 @@ def add_vars_to_workspace(_ws=None,_data=None,_stxsVar=None):
   for var in _data.columns:
     if var in ['type','cat',_stxsVar]: continue
     if var == "CMS_hgg_mass": 
-      _vars[var] = ROOT.RooRealVar(var,var,125.,100.,180.)
-      _vars[var].setBins(160)
-    elif var == "dZ": 
+      _vars[var] = ROOT.RooRealVar(var,var,40.,5.,70.)
+      _vars[var].setBins(800)
+      #_vars[var] = ROOT.RooRealVar(var,var,35.,0.,80.)
+      #_vars[var].setBins(160)
+    #elif var == "dZ": 
+    elif var == "vtxdz": 
       _vars[var] = ROOT.RooRealVar(var,var,0.,-20.,20.)
       _vars[var].setBins(40)
     elif var == "weight": 
