@@ -25,7 +25,7 @@ def tryMake(directory):
 
 def leave():
   print "\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ HGG BACKGROUND FITTER (END) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ "
-  sys.exit(1)
+  sys.exit(0)
 
 def get_options():
   parser = OptionParser()
@@ -42,7 +42,7 @@ def get_options():
   parser.add_option("--gofCriteria", dest='gofCriteria', default=0.01, type='float', help="goodness-of-fit threshold to include function in envelope")
   parser.add_option('--doPlots', dest='doPlots', default=False, action="store_true", help="Produce bkg fitting plots")
   parser.add_option('--nBins', dest='nBins', default=80, type='int', help="Number of bins for fit")
-  parser.add_option('--nBinsOutput', dest='nBinsOutput', default=320, type='int', help="Number of bins for ouptut WS")
+  parser.add_option('--nBinsOutput', dest='nBinsOutput', default=320, type='int', help="Number of bins for output WS")
   # Minimizer options
   parser.add_option('--minimizerMethod', dest='minimizerMethod', default='TNC', help="(Scipy) Minimizer method")
   parser.add_option('--minimizerTolerance', dest='minimizerTolerance', default=1e-8, type='float', help="(Scipy) Minimizer tolerance")
@@ -81,11 +81,9 @@ model.goodnessOfFit(_gofCriteria = opt.gofCriteria)
 
 for k in model.pdfs: print "%s --> Success: %s, Evals = %g, NLL = %.3f"%(k,model.pdfs[k]['status']['success'],model.pdfs[k]['status']['nfev'],model.pdfs[k]['NLL'])
 
-pdf_null = model.pdfs[('Exponential',1)]
-pdf_test = model.pdfs[('Exponential',1)]
-
-#change directory
-model.getProbabilityFTestFromToys(pdf_null,pdf_test,_outDir="/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFinalFit/Background/fTest_with_toys",nToys=10)
+#pdf_null = model.pdfs[('Exponential',1)]
+#pdf_test = model.pdfs[('Exponential',1)]
+#model.getProbabilityFTestFromToys(pdf_null,pdf_test,_outDir="/eos/user/a/atsatsos/FGG_Fits_Bkg_Test",nToys=10)
 
 # Build envelope
 if opt.year == "merged": model.buildEnvelope(_extension="_%s"%sqrts__)
@@ -105,7 +103,6 @@ tryMake("/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFina
 tryMake("/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s"%opt.year)
 tryMake("/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s/ParaNNPrelim"%opt.year)
 plotPdfMap(model,model.envelopePdfs,opt.plotBlindingRegion,_outdir="/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s/ParaNNPrelim"%opt.year,_cat=opt.cat)
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # SAVE: to output workspace
 

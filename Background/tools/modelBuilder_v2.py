@@ -1,6 +1,7 @@
 import ROOT
 import json
 import numpy as np
+import os, sys
 from scipy.optimize import minimize
 import scipy.stats
 from scipy import linalg
@@ -308,7 +309,7 @@ class modelBuilder:
   # Function to extract goodness-of-fit from pdf to data
   def getGOF(self,_pdfInfo):
     
-    # Convert NLL to chi2Get chi2 value from plotting (reweighted) data and pdf
+    # Convert NLL to chi2 and Get chi2 value from plotting (reweighted) data and pdf
     chi2 = 2*_pdfInfo['NLL']
     ndof = _pdfInfo['Ndof']
     pval = ROOT.TMath.Prob(chi2,ndof)
@@ -410,6 +411,7 @@ class modelBuilder:
       if v['ftest']:
         gof = self.getGOF(v)
         if gof >= _gofCriteria:
+#        if gof > _gofCriteria:
           print " --> Adding pdf to envelope: (%s,%s)"%(k[0],k[1])
           self.envelopePdfs[k] = v
         else:

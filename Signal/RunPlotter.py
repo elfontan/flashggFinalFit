@@ -132,7 +132,8 @@ for cat,f in inputFiles.iteritems():
     # Extract pdf and create histogram
     pdf = w.pdf("extend%s_%sThisLumi"%(outputWSObjectTitle__,_id)) 
     hpdfs[_id] = pdf.createHistogram("h_pdf_%s"%_id,xvar,ROOT.RooFit.Binning(opt.pdf_nBins))
-    hpdfs[_id].Scale(wcat*float(opt.nBins)/320) # FIXME: hardcoded 320
+    #hpdfs[_id].Scale(wcat*float(opt.nBins)/320) # FIXME: hardcoded 320
+    hpdfs[_id].Scale(wcat*((80-0)/float(opt.nBins))) # FIXME: hardcoded value according to the chice of the binning in the workspace
 
   # Fill total histograms: data, per-year pdfs and pdfs
   for _id,d in data_rwgt.iteritems(): d.fillHistogram(hists['data'],alist)

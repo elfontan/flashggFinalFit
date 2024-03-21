@@ -4,6 +4,27 @@ from collections import OrderedDict as od
 # Add analyses to globalReplacementMap. See "STXS" as an example
 globalReplacementMap = od()
 
+# Low mass analysis: Untagged_Tag0, Untagged_Tag1, Untagged_Tag2, Untagged_Tag3
+globalReplacementMap['lowMassAnalysis'] = od()
+# For WRONG VERTEX SCENARIO:
+#  * single proc x cat for wrong vertex since for dZ > 1cm shape independent of proc x cat
+#  * use proc x cat with highest number of WV events
+globalReplacementMap['lowMassAnalysis']['procWV'] = "GG2H"
+globalReplacementMap['lowMassAnalysis']['catWV'] = "UntaggedTag_0"
+# For RIGHT VERTEX SCENARIO:
+#  * map must contain entry for all cats being processed (for replacement proc and cat)
+globalReplacementMap['lowMassAnalysis']['procRVMap'] = od()
+globalReplacementMap["lowMassAnalysis"]["procRVMap"]["UntaggedTag_0"] = "GG2H"
+globalReplacementMap["lowMassAnalysis"]["procRVMap"]["UntaggedTag_1"] = "GG2H"
+globalReplacementMap["lowMassAnalysis"]["procRVMap"]["UntaggedTag_2"] = "GG2H"
+globalReplacementMap["lowMassAnalysis"]["procRVMap"]["UntaggedTag_3"] = "GG2H"
+# Replacement category for RV fit
+globalReplacementMap["lowMassAnalysis"]["catRVMap"] = od()
+globalReplacementMap["lowMassAnalysis"]["catRVMap"]["UntaggedTag_0"] = "UntaggedTag_0" 
+globalReplacementMap["lowMassAnalysis"]["catRVMap"]["UntaggedTag_1"] = "UntaggedTag_1"
+globalReplacementMap["lowMassAnalysis"]["catRVMap"]["UntaggedTag_2"] = "UntaggedTag_2"
+globalReplacementMap["lowMassAnalysis"]["catRVMap"]["UntaggedTag_3"] = "UntaggedTag_3"
+
 # Example analysis which with cats Untagged_Tag0,VBF_Tag0
 globalReplacementMap['example'] = od()
 # For WRONG VERTEX SCENARIO:
