@@ -409,7 +409,7 @@ class modelBuilder:
     for k, v in self.pdfs.iteritems():
       if v['ftest']:
         gof = self.getGOF(v)
-        if gof > _gofCriteria:
+        if gof >= _gofCriteria:
           print " --> Adding pdf to envelope: (%s,%s)"%(k[0],k[1])
           self.envelopePdfs[k] = v
         else:

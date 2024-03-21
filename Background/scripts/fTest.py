@@ -85,7 +85,7 @@ pdf_null = model.pdfs[('Exponential',1)]
 pdf_test = model.pdfs[('Exponential',1)]
 
 #change directory
-model.getProbabilityFTestFromToys(pdf_null,pdf_test,_outDir="/eos/home-j/jlangfor/www/CMS/postdoc/finalfits/Jul21/Background/fTest_with_toys",nToys=10)
+model.getProbabilityFTestFromToys(pdf_null,pdf_test,_outDir="/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFinalFit/Background/fTest_with_toys",nToys=10)
 
 # Build envelope
 if opt.year == "merged": model.buildEnvelope(_extension="_%s"%sqrts__)
@@ -101,9 +101,10 @@ else: model.buildNorm( norm, _extension="_%s_%s"%(opt.year,sqrts__))
 # Plotting
 print "\n --> Plotting envelope"
 #change directory
-tryMake("/home/hep/mdk16/PhD/ggtt/finalfits_try2/CMSSW_10_2_13/src/flashggFinalFit/Background/plots")
-tryMake("/home/hep/mdk16/PhD/ggtt/finalfits_try2/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s"%opt.year)
-plotPdfMap(model,model.envelopePdfs,opt.plotBlindingRegion,_outdir="/home/hep/mdk16/PhD/ggtt/finalfits_try2/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s"%opt.year,_cat=opt.cat)
+tryMake("/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFinalFit/Background/plots") # change these to where you want to store your plots
+tryMake("/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s"%opt.year)
+tryMake("/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s/ParaNNPrelim"%opt.year)
+plotPdfMap(model,model.envelopePdfs,opt.plotBlindingRegion,_outdir="/afs/cern.ch/work/a/atsatsos/ULLowmassFGG/CMSSW_10_2_13/src/flashggFinalFit/Background/plots/%s/ParaNNPrelim"%opt.year,_cat=opt.cat)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # SAVE: to output workspace

@@ -81,7 +81,7 @@ def plotPdfMap(model,pdfs,plotBlindingRegion,_outdir='./',_cat='',_pdfNBins=1600
   lat.SetTextAlign(31)
   lat.SetNDC()
   lat.SetTextSize(0.035)
-  lat.DrawLatex(0.9,0.92,"137 fb^{-1} (13 TeV)")
+  lat.DrawLatex(0.9,0.92,"2.72 fb^{-1} (13 TeV)")
   lat1 = ROOT.TLatex()
   lat1.SetTextFont(42)
   lat1.SetTextAlign(11)
