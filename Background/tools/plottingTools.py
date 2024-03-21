@@ -58,7 +58,6 @@ def plotPdfMap(model,pdfs,plotBlindingRegion,_outdir='./',_cat='',_pdfNBins=1600
   # Draw histograms
   hists['data'].SetMaximum(1.2*hmax)
   if setLogY:
-    hists['data'].SetMinimum(0.01)
     min_vals = []
     for k,v in pdfs.iteritems():
       min_vals.append(hists[k].GetMinimum())
