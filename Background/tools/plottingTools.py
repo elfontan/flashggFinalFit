@@ -28,12 +28,9 @@ def plotPdfMap(model,pdfs,plotBlindingRegion,_outdir='./',_cat='',_pdfNBins=1600
     pdfiter += 1
 
   # Create data histogram
-<<<<<<< HEAD
-=======
   if _dataNBins == None:
     _dataNBins = model.xvar.getBins()
 
->>>>>>> feecf5ad257af29561cb119ed1a2105ab8ccdcdc
   hists['data'] = model.xvar.createHistogram("h_data",ROOT.RooFit.Binning(_dataNBins))
   model.DataHist.fillHistogram(hists['data'],ROOT.RooArgList(model.xvar))
 
@@ -43,10 +40,6 @@ def plotPdfMap(model,pdfs,plotBlindingRegion,_outdir='./',_cat='',_pdfNBins=1600
       blindingRegion = plotBlindingRegion
     else:
       blindingRegion = model.blindingRegion
-<<<<<<< HEAD
-=======
-
->>>>>>> feecf5ad257af29561cb119ed1a2105ab8ccdcdc
     for ibin in range(1,hists['data'].GetNbinsX()+1):
       xval = hists['data'].GetBinCenter(ibin)
       if( xval >= blindingRegion[0] )&( xval <= blindingRegion[1] ):
@@ -65,34 +58,22 @@ def plotPdfMap(model,pdfs,plotBlindingRegion,_outdir='./',_cat='',_pdfNBins=1600
   # Draw histograms
   hists['data'].SetMaximum(1.2*hmax)
   if setLogY:
-<<<<<<< HEAD
     hists['data'].SetMinimum(0.01)
-=======
-    #hists['data'].SetMinimum(0.01)
     min_vals = []
     for k,v in pdfs.iteritems():
       min_vals.append(hists[k].GetMinimum())
     hists['data'].SetMinimum(max(min_vals))
->>>>>>> feecf5ad257af29561cb119ed1a2105ab8ccdcdc
   else:
     hists['data'].SetMinimum(0)
   hists['data'].Draw("PE")
   for k,v in pdfs.iteritems():
     # Scale pdf histograms
-<<<<<<< HEAD
-    hists[k].Scale(v['norm']*(float(_pdfNBins/_dataNBins)))
-    hists[k].Draw("Same HIST")
-
-  # Add legend
-  leg = ROOT.TLegend(0.58,0.6,0.86,0.8)
-=======
     hists[k].Scale(v['norm']*(float(_pdfNBins)/_dataNBins))
     hists[k].Draw("Same HIST")
 
   # Add legend
   height_per_pdf = 0.2/4
   leg = ROOT.TLegend(0.56,0.8-height_per_pdf*(len(pdfs)+1),0.86,0.8)
->>>>>>> feecf5ad257af29561cb119ed1a2105ab8ccdcdc
   leg.SetFillStyle(0)
   leg.SetLineColor(0)
   leg.SetTextSize(0.04)
@@ -108,11 +89,7 @@ def plotPdfMap(model,pdfs,plotBlindingRegion,_outdir='./',_cat='',_pdfNBins=1600
   lat.SetTextAlign(31)
   lat.SetNDC()
   lat.SetTextSize(0.035)
-<<<<<<< HEAD
   lat.DrawLatex(0.9,0.92,"2.72 fb^{-1} (13 TeV)")
-=======
-  lat.DrawLatex(0.9,0.92,"137 fb^{-1} (13 TeV)")
->>>>>>> feecf5ad257af29561cb119ed1a2105ab8ccdcdc
   lat1 = ROOT.TLatex()
   lat1.SetTextFont(42)
   lat1.SetTextAlign(11)
