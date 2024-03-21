@@ -12,7 +12,7 @@ from array import array
 # So far defined up to MHPolyOrder=2
 pLUT = od()
 pLUT['DCB'] = od()
-pLUT['DCB']['dm_p0'] = [0.1,-2.5,2.5]
+pLUT['DCB']['dm_p0'] = [0.1,-1.5,1.5]
 pLUT['DCB']['dm_p1'] = [0.0,-0.1,0.1]
 pLUT['DCB']['dm_p2'] = [0.0,-0.001,0.001]
 pLUT['DCB']['sigma_p0'] = [1.1,0.5,20.]
@@ -53,7 +53,7 @@ pLUT['Frac'] = od()
 ##pLUT['Frac']['p1'] = [0.35,0.01,2.0] #lowmass
 #pLUT['Frac']['p0'] = [0.006,0.001,0.6] # lowmass2
 pLUT['Frac']['p0'] = [0.25,0.0,0.99]
-pLUT['Frac']['p1'] = [0.,-0.05,0.05]
+pLUT['Frac']['p1'] = [0.,-0.07,0.07]
 pLUT['Frac']['p2'] = [0.,-0.0001,0.0001]
 pLUT['Gaussian'] = od()
 
