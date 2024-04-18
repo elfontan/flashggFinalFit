@@ -8,26 +8,20 @@ Slides from the flashgg tutorial series can be found [here](https://indico.cern.
 
 ## Download and setup instructions
 
+Setup in lxplus7. As explained in the [Combine page](https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/latest/#within-cmssw-recommended-for-cms-users), CMSSW_11_3_X runs on slc7, which can be setup using apptainer.
+At first, install Combine as per the documentation.
 ```
-export SCRAM_ARCH=slc7_amd64_gcc700
-cmsrel CMSSW_10_2_13
-cd CMSSW_10_2_13/src
-
-# Install the GBRLikelihood package which contains the RooDoubleCBFast implementation
-git clone https://github.com/jonathon-langford/HiggsAnalysis.git
-
-# Install Combine as per the documentation here: cms-analysis.github.io/HiggsAnalysis-CombinedLimit/
-git clone -b v8.2.0 https://github.com/cms-analysis/HiggsAnalysis-CombinedLimit.git HiggsAnalysis/CombinedLimit
-
-# Install Combine Harvester for parallelizing fits
-git clone -b 102x https://github.com/cms-analysis/CombineHarvester.git CombineHarvester
-
-# Compile external libraries
+cmsrel CMSSW_11_3_4
+cd CMSSW_11_3_4/src
 cmsenv
-scram b -j 9
+git fetch origin
+git checkout v9.2.1
+scramv1 b clean; scramv1 b # always make a clean build
+```
 
-# Install Flashgg Final Fit packages
-git clone -b dev_fggfinalfits_lite https://github.com/cms-analysis/flashggFinalFit.git
+Then, install flashggFinalFit packages:
+```
+git clone -b EF_lowMassAnalysis git@github.com:elfontan/flashggFinalFit.git
 cd flashggFinalFit/
 ```
 

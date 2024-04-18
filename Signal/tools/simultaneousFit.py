@@ -6,6 +6,7 @@ from scipy.optimize import minimize
 import scipy.stats
 from collections import OrderedDict as od
 from array import array
+import ctypes
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   
 # Parameter lookup table for initialisation
@@ -88,13 +89,7 @@ def poisson_interval(x,eSumW2,level=0.68):
   return eLo, eHi
 
 # Function to calc chi2 for binned fit given pdf, RooDataHist and xvar as inputs
-#def calcChi2(x,pdf,d,errorType="Sumw2",_verbose=False,fitRange=[100,180]):
-#def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[110,140]):
-#def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[10,30]):
-#def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[30,70]): # M50
-def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[10,70]): # M40
-#def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[5,25]): # M15
-  #def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[1,80]):
+def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[10,70]): 
   k = 0. # number of non empty bins (for calc degrees of freedom)
   normFactor = d.sumEntries()
   
@@ -109,7 +104,8 @@ def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[10,70]): # M40
     ndata = d.weight()
     if ndata*ndata == 0: continue
     npdf = pdf.getVal(ROOT.RooArgSet(x))*normFactor*d.binVolume()
-    eLo, eHi = ROOT.Double(), ROOT.Double()
+    eLo, eHi = ctypes.c_double(), ctypes.c_double()
+    #eLo, eHi = ROOT.Double(), ROOT.Double()
     d.weightError(eLo,eHi,ROOT.RooAbsData.SumW2)
     bins.append(i)
     nPdf.append(npdf)
@@ -120,7 +116,9 @@ def calcChi2(x,pdf,d,errorType="Poisson",_verbose=False,fitRange=[10,70]): # M40
   # Convert to numpy array
   nPdf = np.asarray(nPdf)
   nData = np.asarray(nData)
-  eDataSumW2 = np.asarray(eDataSumW2)
+  eDataSumW2_values = [e.value for e in eDataSumW2]
+  eDataSumW2 = np.asarray(eDataSumW2_values, dtype=float)
+  #eDataSumW2 = np.asarray(eDataSumW2)
   
   if errorType == 'Poisson':
     # Change error to poisson intervals: take max interval as error

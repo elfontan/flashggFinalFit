@@ -8,10 +8,10 @@ There are a number of steps to perform when constructing the signal model (descr
 signalScriptCfg = {
 
     # Setup                                                                                                                             
-    'inputWSDir':'/afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/Sep2023_flashGG/FLASHGGFINALFIT/CMSSW_10_2_13/src/flashggFinalFit/Signal/Jan2024_newSignalNtuples_ggH_pNN_cat_NN0p907_%s'%_year,
+    'inputWSDir':'/afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/StatisticalAnalysis/CMSSW_11_3_4/src/flashggFinalFit/Signal/April2024_newSignalNtuples_ggH_pNN_cat_NN0p78_%s'%_year,
     'procs':'auto', # if auto: inferred automatically from filenames                                                                                        
     'cats':'auto', # if auto: inferred automatically from (0) workspace                                                                         
-    'ext':'V2_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_%s'%_year,
+    'ext':'LMAnalysis_April2024_allMassPoints_NN0p78_%s'%_year,
     'analysis':'lowMassAnalysis', # To specify which replacement dataset mapping (defined in ./tools/replacementMap.py</pre>)                    
     'year':'%s'%_year, # Use 'combined' if merging all years: not recommended                                                      
     'massPoints':'10,15,20,25,30,35,40,45,50,55,60,65,70',
@@ -44,18 +44,18 @@ To simply print the job scripts without submitting then add the option: `--print
 
 Latest example for running the signal modelling for the very low mass analysis based on a Double Crystal Ball plus Gaussian function is the following:
 ```
-python RunSignalScripts.py --inputConfig Jan2024_config_lowMassAnalysis_2018.py --mode signalFit --modeOpts " --doPlots " --printOnly
+python RunSignalScripts.py --inputConfig config_April2024_lowMassAnalysis_2018.py --mode signalFit --modeOpts " --doPlots " --useDCB --printOnly
 ```
 resulting in a similar execution command:
 ```
-python /afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/Sep2023_flashGG/FLASHGGFINALFIT/CMSSW_10_2_13/src/flashggFinalFit/Signal/scripts/signalFit.py --inputWSDir /afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/Sep2023_flashGG/FLASHGGFINALFIT/CMSSW_10_2_13/src/flashggFinalFit/Signal/March2024_newSignalNtuples_ggH_pNN_cat_NN0p907_2018 --ext Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018 --proc GG2H --cat UntaggedTag_0 --year 2018 --analysis lowMassAnalysis --massPoints 10,15,20,25,30,35,40,45,50,55,60,65,70 --scales '' --scalesCorr '' --scalesGlobal '' --smears ''  --doPlots  --useDCB --skipSystematics --skipVertexScenario --skipBeamspotReweigh --minMass 10 --maxMass 70
+python /afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/StatisticalAnalysis/CMSSW_11_3_4/src/flashggFinalFit/Signal/scripts/signalFit.py --inputWSDir /afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/StatisticalAnalysis/CMSSW_11_3_4/src/flashggFinalFit/Signal/April2024_newSignalNtuples_ggH_pNN_cat_NN0p78_2018 --ext LMAnalysis_April2024_allMassPoints_NN0p78_2018 --proc GG2H --cat UntaggedTag_0 --year 2018 --analysis lowMassAnalysis --massPoints 10,15,20,25,30,35,40,45,50,55,60,65,70 --scales '' --scalesCorr '' --scalesGlobal '' --smears ''  --doPlots --useDCB --skipSystematics --skipVertexScenario --skipBeamspotReweigh --minMass 10 --maxMass 70
 ```
 
 The output workspace resulting from the parametric model is saved in outputdir/signalFit/output/*root. You can check the content by running the following command:
 ```
-python  utils_simpleFits/plot_spline_dcb.py --w outdir_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018/signalFit/output/CMS-HGG_sigfit_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018_GG2H_2018_UntaggedTag_0.root --c cat0 --outdir /eos/user/e/elfontan/www/LowMassDiPhoton/diphotonBDT/ParametricBDT/TensorFlow/SignalModeling/newNtuples_newTraining_NN0p907/paramModel/
+python  utils_simpleFits/plot_spline_dcb.py --w outdir_LMAnalysis_April2024_allMassPoints_NN0p78_2018/signalFit/output/CMS-HGG_sigfit_LMAnalysis_April2024_allMassPoints_NN0p78_2018_GG2H_2018_UntaggedTag_0.root --c cat0 --o /eos/user/e/elfontan/www/LowMassDiPhoton/diphotonBDT/ParametricBDT/TensorFlow/SignalModeling/newNtuples_newTraining_NN0p78/paramModel/
 
-python  utils_simpleFits/plot_spline_dcb.py --w outdir_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018/signalFit/output/CMS-HGG_sigfit_Mar2024_LMAnalysis_allMassPoints_xsec1_NN0p907_2018_GG2H_2018_UntaggedTag_1.root --c cat1 --outdir /eos/user/e/elfontan/www/LowMassDiPhoton/diphotonBDT/ParametricBDT/TensorFlow/SignalModeling/newNtuples_newTraining_NN0p907/paramModel/
+python  utils_simpleFits/plot_spline_dcb.py --w outdir_LMAnalysis_April2024_allMassPoints_NN0p78_2018/signalFit/output/CMS-HGG_sigfit_LMAnalysis_April2024_allMassPoints_NN0p78_2018_GG2H_2018_UntaggedTag_1.root --c cat1 --o /eos/user/e/elfontan/www/LowMassDiPhoton/diphotonBDT/ParametricBDT/TensorFlow/SignalModeling/newNtuples_newTraining_NN0p78/paramModel/
 ```
 
 
