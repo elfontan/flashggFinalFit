@@ -15,7 +15,7 @@ signalScriptCfg = {
     
     # Additional option for the fit: --useDCB (by default it is false)
     # Use DCB + 1 Gaussian as pdf instead of N Gaussians
-    '--useDCB': 1,
+    #'--useDCB': 1,
     
     #Photon shape systematics  
     'scales':'', # separate nuisance per year

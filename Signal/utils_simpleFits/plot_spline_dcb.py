@@ -64,14 +64,16 @@ if (cat == "cat0"):
   splines = ["mean_dcb_GG2H_2018_UntaggedTag_0_13TeV", "sigma_dcb_GG2H_2018_UntaggedTag_0_13TeV", 
              "a1_dcb_GG2H_2018_UntaggedTag_0_13TeV", "a2_dcb_GG2H_2018_UntaggedTag_0_13TeV", 
              "n1_dcb_GG2H_2018_UntaggedTag_0_13TeV", "n2_dcb_GG2H_2018_UntaggedTag_0_13TeV", 
-             "sigma_gaus_GG2H_2018_UntaggedTag_0_13TeV", "frac_GG2H_2018_UntaggedTag_0_13TeV" 
+             "sigma_gaus_GG2H_2018_UntaggedTag_0_13TeV", "frac_GG2H_2018_UntaggedTag_0_13TeV",
+             "fea_GG2H_2018_UntaggedTag_0_13TeV"
              #, "dm_dcb_GG2H_2018_UntaggedTag_0_13TeV", "fea_GG2H_2018_UntaggedTag_0_13TeV"
                 ]
 elif (cat == "cat1"):
   splines = ["mean_dcb_GG2H_2018_UntaggedTag_1_13TeV", "sigma_dcb_GG2H_2018_UntaggedTag_1_13TeV", 
              "a1_dcb_GG2H_2018_UntaggedTag_1_13TeV", "a2_dcb_GG2H_2018_UntaggedTag_1_13TeV", 
              "n1_dcb_GG2H_2018_UntaggedTag_1_13TeV", "n2_dcb_GG2H_2018_UntaggedTag_1_13TeV", 
-             "sigma_gaus_GG2H_2018_UntaggedTag_1_13TeV", "frac_GG2H_2018_UntaggedTag_1_13TeV" 
+             "sigma_gaus_GG2H_2018_UntaggedTag_1_13TeV", "frac_GG2H_2018_UntaggedTag_1_13TeV",
+             "fea_GG2H_2018_UntaggedTag_1_13TeV"
              #, "dm1_dcb_GG2H_2018_UntaggedTag_1_13TeV", "fea_GG2H_2018_UntaggedTag_1_13TeV"
            ]
 

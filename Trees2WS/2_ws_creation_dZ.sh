@@ -12,4 +12,3 @@ python trees2ws.py --inputConfig config_lowMassAnalysis_dZ.py --inputTreeFile ta
 python trees2ws.py --inputConfig config_lowMassAnalysis_dZ.py --inputTreeFile tagsDumper/trees/ggh_20_13TeV.root --inputMass 20 --productionMode ggh --year 2018
 python trees2ws.py --inputConfig config_lowMassAnalysis_dZ.py --inputTreeFile tagsDumper/trees/ggh_15_13TeV.root --inputMass 15 --productionMode ggh --year 2018
 python trees2ws.py --inputConfig config_lowMassAnalysis_dZ.py --inputTreeFile tagsDumper/trees/ggh_10_13TeV.root --inputMass 10 --productionMode ggh --year 2018
-python trees2ws.py --inputConfig config_lowMassAnalysis_dZ.py --inputTreeFile tagsDumper/trees/ggh_5_13TeV.root --inputMass 5 --productionMode ggh --year 2018

@@ -204,14 +204,52 @@ class FinalModel:
                      '65': 560.66, 
                      '70': 505.814
         }
+        #sumW = [45505.96,49188.5,49044.96,46808.68,47301.34,49655.04,48107.04,49322.4,56421.12,58336.98,59899.2,144230.6,117886.18]           
+        genSumW_list = { 
+                     '10': 45505.96, 
+                     '15': 49188.5, 
+                     '20': 49044.96, 
+                     '25': 46808.68,                                                                          
+                     '30': 47301.34, 
+                     '35': 49655.04, 
+                     '40': 48107.04, 
+                     '45': 49322.4, 
+                     '50': 56421.12, 
+                     '55': 58336.98, 
+                     '60': 59899.2, 
+                     '65': 144230.6,
+                     '70': 117886.18
+        }
+        #nEvents = [98926,98377,102177,101758,102829,103448,100223,102755,100752,100581,99832,232630,190139]
+        nEv_list = { 
+                     '10': 98926, 
+                     '15': 98377, 
+                     '20': 102177, 
+                     '25': 101758, 
+                     '30': 102829,                                                                          
+                     '35': 103448, 
+                     '40': 100223, 
+                     '45': 102755, 
+                     '50': 100752, 
+                     '55': 100581, 
+                     '60': 99832, 
+                     '65': 232630, 
+                     '70': 190139
+        }
 
         print "#######################################" 
-        print("Sum of weights = ", sumw )
         genw = genw_list.get(str(mp), [])
-        print("genw = ", genw)
-        print "sumw scaled standalone= ", sumw/(xs*br*1.06*genw)
-        #ea.append(sumw/(lumiScaleFactor*xs*br*1000*1.06))
-        ea.append(sumw/(xs * br * 1.06 * genw * 1000)) 
+        genSumW = genSumW_list.get(str(mp), [])
+        nEv = nEv_list.get(str(mp), [])
+        print("########## MASS " ,str(mp)," ##############")
+        print("Sum of weights = ", sumw )
+        print("GenSumW = ", genSumW )
+        print("numberOfEvents = ", nEv )
+        print("ScalingPreDen = ", nEv/genSumW)
+        print("den = ", xs * br * 1.06 * genw * lumiScaleFactor)
+        print("ea = ", sumw * (nEv/genSumW) /(xs * br * 1.06 * genw * lumiScaleFactor))
+        #ea.append(sumw/(lumiScaleFactor*xs*br*1.06))
+        ea.append(sumw * (nEv/genSumW) /(xs * br * 1.06 * genw * lumiScaleFactor)) 
     # If single mass point then add MHLow and MHHigh dummy points for constant ea
     if len(ea) == 1: ea, mh = [ea[0],ea[0],ea[0]], [float(self.MHLow),mh[0],float(self.MHHigh)]
     # Convert to numpy arrays and make spline

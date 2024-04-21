@@ -79,7 +79,7 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='40'
   for k,ssf in ssfs.iteritems():
     ssf.MH.setVal(int(_mass))
     #hists[k] = ssf.Pdfs['final'].createHistogram("h_%s_%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(800))
-    hists[k] = ssf.Pdfs['final'].createHistogram("h_%s_%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1600))
+    hists[k] = ssf.Pdfs['final'].createHistogram("h_%s_%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1250))
     if int(k.split("_")[-1]) == _opt: hists[k].SetLineWidth(3)
     else: hists[k].SetLineWidth(1)
     hists[k].SetLineColor(LineColorMap[k.split("_")[-1]])
@@ -95,8 +95,8 @@ def plotFTest(ssfs,_opt=1,_outdir='./',_extension='',_proc='',_cat='',_mass='40'
   # Extract data histogram
   hists['data'] = ssf.xvar.createHistogram("h_data%s"%_extension,ROOT.RooFit.Binning(ssf.nBins))
   ssf.DataHists[str(int(_mass))].fillHistogram(hists['data'],ROOT.RooArgList(ssf.xvar))
-  hists['data'].Scale(float(ssf.nBins)/800) #EF
-  #hists['data'].Scale(float(ssf.nBins)/1600) #EF
+  #hists['data'].Scale(float(ssf.nBins)/800) #EF
+  hists['data'].Scale(float(ssf.nBins)/1250) #EF
   hists['data'].SetMarkerStyle(20)
   hists['data'].SetMarkerColor(1)
   hists['data'].SetLineColor(1)
@@ -208,8 +208,8 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat='', _mass='')
   hists = od()
   hmax, hmin = 0, 0
   # Total pdf histogram
-  hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(800))
-  #hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(1600))
+  #hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(800))
+  hists['final'] = ssf.Pdfs['final'].createHistogram("h_final%s"%_extension,ssf.xvar,ROOT.RooFit.Binning(1250))
   hists['final'].SetLineWidth(3)
   hists['final'].SetLineColor(ROOT.kBlue+1)
   #hists['final'].SetLineColor(1)
@@ -228,8 +228,8 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat='', _mass='')
   hists['data'].SetMinimum(0)
   hists['data'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*10/100,int(_mass)+int(_mass)*10/100) 
   #hists['data'].GetXaxis().SetRangeUser(int(_mass)-int(_mass)*30/100,int(_mass)+int(_mass)*30/100) 
-  hists['data'].Scale(float(ssf.nBins)/800) #EF
-  #hists['data'].Scale(float(ssf.nBins)/1600)
+  #hists['data'].Scale(float(ssf.nBins)/800) #EF
+  hists['data'].Scale(float(ssf.nBins)/1250)
   hists['data'].SetMarkerStyle(20)
   hists['data'].SetMarkerColor(1)
   hists['data'].SetLineColor(1)
@@ -253,8 +253,8 @@ def plotPdfComponents(ssf,_outdir='./',_extension='',_proc='',_cat='', _mass='')
       else:
 	frac = ssf.Pdfs['final'].getComponents().getRealValue("%s_%s_recursive_fraction_%s"%(ssf.proc,ssf.cat,k))
       # Create histogram with 1600 bins
-      hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(800)) #EF
-      #hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1600))
+      #hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(800)) #EF
+      hists[k] = v.createHistogram("h_%s%s"%(k,_extension),ssf.xvar,ROOT.RooFit.Binning(1250))
       hists[k].Scale(frac)
       hists[k].SetLineColor(LineColorMap[pdfItr])
       hists[k].SetLineWidth(3)
@@ -317,8 +317,8 @@ def plotInterpolation(_finalModel,_outdir='./',_massPoints='10,15, 20, 25, 30, 3
   hmax = 0.0001 
   for mp in _massPoints.split(","):
     _finalModel.MH.setVal(int(mp))
-    hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(800)) # EF
-    #hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(1600)) 
+    #hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(800)) # EF
+    hists[mp] = _finalModel.Pdfs['final'].createHistogram("h_%s"%mp,_finalModel.xvar,ROOT.RooFit.Binning(1250)) 
     norm = _finalModel.Functions['final_normThisLumi'].getVal()
     if norm == 0.: hists[mp].Scale(0.)
     else: 
@@ -330,11 +330,11 @@ def plotInterpolation(_finalModel,_outdir='./',_massPoints='10,15, 20, 25, 30, 3
         print "mp is == ", mp
         print "N bins of the mass distribution (taken from the WS) = ", _finalModel.xvar.getBins() 
         print "hists[mp].Integral() = ", hists[mp].Integral()
-        print "Scaling factor = ", (norm*800)/(hists[mp].Integral()*_finalModel.xvar.getBins()) #EF
-        #print "Scaling factor = ", (norm*3200)/(hists[mp].Integral()*_finalModel.xvar.getBins())
+        #print "Scaling factor = ", (norm*800)/(hists[mp].Integral()*_finalModel.xvar.getBins()) #EF
+        print "Scaling factor = ", (norm*1250)/(hists[mp].Integral()*_finalModel.xvar.getBins())
         print"---------------------------------------------"
-        hists[mp].Scale((norm*800)/(hists[mp].Integral()*_finalModel.xvar.getBins())) # EF
-        #hists[mp].Scale((norm*3200)/(hists[mp].Integral()*_finalModel.xvar.getBins()))
+        #hists[mp].Scale((norm*800)/(hists[mp].Integral()*_finalModel.xvar.getBins())) # EF
+        hists[mp].Scale((norm*1250)/(hists[mp].Integral()*_finalModel.xvar.getBins()))
     if mp in _finalModel.Datasets:
       hists[mp].SetLineWidth(2)
     else:

@@ -53,8 +53,10 @@ pLUT['Gaussian_wdcb']['sigma_p2'] = [0.0,-0.001,0.001]
 pLUT['Frac'] = od()
 ##pLUT['Frac']['p1'] = [0.35,0.01,2.0] #lowmass
 #pLUT['Frac']['p0'] = [0.006,0.001,0.6] # lowmass2
+#pLUT['Frac']['p0'] = [0.1,0.05,0.99]
+#pLUT['Frac']['p1'] = [0.2,0.1,3.0]
 pLUT['Frac']['p0'] = [0.25,0.0,0.99]
-pLUT['Frac']['p1'] = [0.,-0.07,0.07]
+pLUT['Frac']['p1'] = [0.01,-0.007,0.07]
 pLUT['Frac']['p2'] = [0.,-0.0001,0.0001]
 pLUT['Gaussian'] = od()
 
