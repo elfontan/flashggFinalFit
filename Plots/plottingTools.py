@@ -4,6 +4,7 @@ import math
 import pandas
 import numpy as np
 import re
+from ROOT import kBlue, kRed, kCyan
 
 def Translate(name, ndict):
     return ndict[name] if name in ndict else name
@@ -86,7 +87,7 @@ def makeSplusBPlot(workspace,hD,hSB,hB,hS,hDr,hBr,hSr,cat,options,dB=None,reduce
     for h_ipdf in [hSB,hB,hS]:
       for h in h_ipdf.itervalues(): h.GetXaxis().SetRangeUser(reduceRange[0],reduceRange[1])
   
-  canv = ROOT.TCanvas("canv_%s"%cat,"canv_%s"%cat,700,700)
+  canv = ROOT.TCanvas("canv_%s"%cat,"canv_%s"%cat,1000,1000)
   pad1 = ROOT.TPad("pad1_%s"%cat,"pad1_%s"%cat,0,0.25,1,1)
   pad1.SetTickx()
   pad1.SetTicky()
@@ -110,14 +111,14 @@ def makeSplusBPlot(workspace,hD,hSB,hB,hS,hDr,hBr,hSr,cat,options,dB=None,reduce
   pad1.cd()
   h_axes = hD.Clone()
   h_axes.Reset()
-  if options.doBands: h_axes.SetMaximum((hD.GetMaximum()+hD.GetBinError(hD.GetMaximumBin()))*1.4)
+  if options.doBands: h_axes.SetMaximum((hD.GetMaximum()+hD.GetBinError(hD.GetMaximumBin()))*2.2)
   else: h_axes.SetMaximum((hD.GetMaximum()+hD.GetBinError(hD.GetMaximumBin()))*1.3)
   h_axes.SetMinimum(0.)
   h_axes.SetTitle("")
   h_axes.GetXaxis().SetTitle("")
   h_axes.GetXaxis().SetLabelSize(0)
   h_axes.GetYaxis().SetTitleSize(0.05)
-  h_axes.GetYaxis().SetTitle("Events / GeV")
+  h_axes.GetYaxis().SetTitle("Events / 0.02 GeV") #0.01,0.02,0.04,0.05 for m=12,35,50,68 GeV
   h_axes.GetYaxis().SetTitleOffset(1.1)
   h_axes.GetYaxis().SetLabelSize(0.035)
   h_axes.GetYaxis().SetLabelOffset(0.007)
@@ -144,18 +145,23 @@ def makeSplusBPlot(workspace,hD,hSB,hB,hS,hDr,hBr,hSr,cat,options,dB=None,reduce
       gr_1sig_r.SetPointError(gr_i,xerr,xerr,properties['median']-properties['down1sigma'],properties['up1sigma']-properties['median'])
       gr_2sig_r.SetPointError(gr_i,xerr,xerr,properties['median']-properties['down2sigma'],properties['up2sigma']-properties['median'])
       gr_i += 1
-    gr_1sig.SetFillColor(ROOT.kGreen)
+
+    col_sig1 = ROOT.TColor.GetColor("#85D1FB")  
+    col_sig2 = ROOT.TColor.GetColor("#FFDF7F")  
+    gr_1sig.SetFillColor(col_sig1)
     gr_1sig.SetFillStyle(1001)
-    gr_2sig.SetFillColor(ROOT.kYellow)
+    gr_2sig.SetFillColor(col_sig2)
     gr_2sig.SetFillStyle(1001)
-    gr_1sig_r.SetFillColor(ROOT.kGreen)
+    gr_1sig_r.SetFillColor(col_sig1)
     gr_1sig_r.SetFillStyle(1001)
-    gr_2sig_r.SetFillColor(ROOT.kYellow)
+    gr_2sig_r.SetFillColor(col_sig2)
     gr_2sig_r.SetFillStyle(1001)
     gr_2sig.Draw("LE3SAME")
     gr_1sig.Draw("LE3SAME")
+
   # Add legend
-  if options.doBands: leg = ROOT.TLegend(0.58,0.46,0.86,0.76)
+  if options.doBands: leg = ROOT.TLegend(0.58,0.56,0.86,0.86)
+  #if options.doBands: leg = ROOT.TLegend(0.58,0.46,0.86,0.76)
   else: leg = ROOT.TLegend(0.58,0.52,0.86,0.76)
   leg.SetFillStyle(0)
   leg.SetLineColor(0)
@@ -174,10 +180,10 @@ def makeSplusBPlot(workspace,hD,hSB,hB,hS,hDr,hBr,hSr,cat,options,dB=None,reduce
   # Set pdf style
   if options.unblind:
     hSB['pdfNBins'].SetLineWidth(3)
-    hSB['pdfNBins'].SetLineColor(2)
+    hSB['pdfNBins'].SetLineColor(kBlue)
     hSB['pdfNBins'].Draw("Hist same c")
     hB['pdfNBins'].SetLineWidth(3)
-    hB['pdfNBins'].SetLineColor(2)
+    hB['pdfNBins'].SetLineColor(kBlue)
     hB['pdfNBins'].SetLineStyle(2)
     hB['pdfNBins'].Draw("Hist same c")
   else:
@@ -203,19 +209,16 @@ def makeSplusBPlot(workspace,hD,hSB,hB,hS,hDr,hBr,hSr,cat,options,dB=None,reduce
   lat0.SetTextSize(0.06)
   #lat0.DrawLatex(0.12,0.92,"#bf{CMS} #it{Preliminary}")
   #lat0.DrawLatex(0.12,0.92,"#bf{CMS}")
-  lat0.DrawLatex(0.6,0.92,"137 fb^{-1} (13 TeV)")
-  lat0.DrawLatex(0.6,0.8,"#scale[0.6]{%s}"%Translate(cat,translateCats))
+  lat0.DrawLatex(0.6,0.92,"54.4 fb^{-1} (13 TeV)")
+  #lat0.DrawLatex(0.6,0.8,"#scale[0.6]{%s}"%Translate(cat,translateCats))
+  #hggText = "H #rightarrow #gamma#gamma, m_{H} = "+str(mass)+"  GeV"
+  #lat0.DrawLatex(0.15,0.83,"#scale[0.75]{"+hggText+"}")
+  lat0.DrawLatex(0.15,0.83,"#scale[0.75]{H #rightarrow #gamma#gamma, m_{H} = 35 GeV}")
   #lat0.DrawLatex(0.15,0.83,"#scale[0.75]{H#rightarrow#gamma#gamma}")
-  lat0.DrawLatex(0.15,0.83,"#scale[0.75]{H #rightarrow #gamma#gamma, m_{H} = 125.38 GeV}")
-  if(options.loadSnapshot is not None):
+  #if(options.loadSnapshot is not None):
     #lat0.DrawLatex(0.15,0.77,"#scale[0.6]{#vec{#alpha} = STXS stage 1.2 minimal}")
-    lat0.DrawLatex(0.15,0.77,"#scale[0.6]{#vec{#alpha} = (#mu_{ggH}, #mu_{VBF}, #mu_{VH}, #mu_{top})}")
-    #lat0.DrawLatex(0.15,0.77,"#scale[0.5]{(#hat{#mu}_{ggH},#hat{#mu}_{VBF},#hat{#mu}_{VH},#hat{#mu}_{top}) = (1.07,1.04,1.34,1.35)}")
-    #lat0.DrawLatex(0.15,0.77,"#scale[0.75]{#hat{#mu} = 1.03}")
-    #muhat_ggh, muhat_vbf, muhat_vh, muhat_top, mhhat = workspace.var("r_ggH").getVal(), workspace.var("r_VBF").getVal(), workspace.var("r_VH").getVal(), workspace.var("r_top").getVal(), workspace.var("MH").getVal()
-    #lat0.DrawLatex(0.13,0.77,"#scale[0.6]{(#hat{#mu}_{ggH},#hat{#mu}_{VBF},#hat{#mu}_{VH},#hat{#mu}_{top}) = (%.2f,%.2f,%.2f,%.2f)}"%(muhat_ggh,muhat_vbf,muhat_vh,muhat_top))
-    #muhat, mhhat = workspace.var("r").getVal(), workspace.var("MH").getVal()
-    #lat0.DrawLatex(0.13,0.77,"#scale[0.75]{#hat{m}_{H} = %.1f GeV, #hat{#mu} = %.2f}"%(mhhat,muhat))
+    #lat0.DrawLatex(0.15,0.77,"#scale[0.6]{#vec{#alpha} = (#mu_{ggH}, #mu_{VBF}, #mu_{VH}, #mu_{top})}")
+
   #elif options.parameterMap is not None:
   #  poiStr = ''
   #  for kv in options.parameterMap.split(","):
@@ -223,7 +226,8 @@ def makeSplusBPlot(workspace,hD,hSB,hB,hS,hDr,hBr,hSr,cat,options,dB=None,reduce
   #    poiStr += ' %s = %.1f,'%(Translate(k,translatePOIs),float(v))
   #  poiStr = poiStr[:-1]
   #  lat0.DrawLatex(0.13,0.77,"#scale[0.75]{%s}"%poiStr)
-  else: lat0.DrawLatex(0.15,0.77,"#scale[0.75]{#mu = 1.0}")
+  #else: lat0.DrawLatex(0.15,0.77,"#scale[0.75]{#mu = 1.0}")
+
   # Ratio plot
   pad2.cd()
   h_axes_ratio = hDr.Clone()
@@ -246,11 +250,11 @@ def makeSplusBPlot(workspace,hD,hSB,hB,hS,hDr,hBr,hSr,cat,options,dB=None,reduce
   # Set pdf style
   if options.unblind:
     hSr.SetLineWidth(3)
-    hSr.SetLineColor(2)
+    hSr.SetLineColor(kBlue)
     hSr.Draw("Hist same c")
     hBr.SetLineWidth(3)
     hBr.SetLineStyle(2)
-    hBr.SetLineColor(2)
+    hBr.SetLineColor(kBlue)
     hBr.Draw("Hist same c")
   else:
     hSr.SetLineWidth(3)
