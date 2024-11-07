@@ -14,7 +14,8 @@ def get_options():
   parser.add_option("--nToys", dest="nToys", default=500, type='int', help="Number of toys")
   parser.add_option("--POIs", dest="POIs", default="r", help="Parameters of interest in fit")
   parser.add_option("--batch", dest="batch", default="IC", help="Batch system [IC,condor]")
-  parser.add_option("--queue", dest="queue", default="workday", help="Change condor queue")
+  parser.add_option("--queue", dest="queue", default="microcentury", help="Change condor queue")
+  parser.add_option("--machine", dest="machine", default="AlmaLinux9", help="Machine") 
   parser.add_option('--dryRun',dest='dryRun', default=False, action="store_true", help='Dry run')
   return parser.parse_args()
 (opt,args) = get_options()
@@ -38,7 +39,10 @@ setParamStr = "--setParameters "
 setParam0Str = "--setParameters "
 for p,v in poi_bf.iteritems(): 
   setParamStr += "%s=%.3f,"%(p,v)
-  setParam0Str += "%s=0,"%p
+  if p == 'r':
+    setParam0Str += "%s=0,"%p
+  else:
+    setParam0Str += "%s=%.3f,"%(p,v)
 setParamStr = setParamStr[:-1]
 setParam0Str = setParam0Str[:-1]
 mh_bf = w.var("MH").getVal()
@@ -65,7 +69,7 @@ if opt.batch == 'IC':
     # Throw cmd
     fsub.write("#Throw command\n")
     fsub.write("mv higgsCombine_%g_fit_step*.root fit_%g.root\n"%(itoy,itoy))
-    throw_cmd = "combine fit_%g.root -m %.3f --snapshotName MultiDimFit -M GenerateOnly --saveToys --toysFrequentist --bypassFrequentistFit -t -1 -n _%g_throw_step %s"%(itoy,mh_bf,itoy,setParam0Str)
+    throw_cmd = "combine fit_%g.root -m %.3f --snapshotName MultiDimFit -M GenerateOnly --saveToys --saveWorkspace --toysFrequentist --bypassFrequentistFit -t -1 -s -1 -n _%g_throw_step %s"%(itoy,mh_bf,itoy,setParam0Str)
     fsub.write("%s\n\n"%throw_cmd)
     # Clean up
     fsub.write("mv higgsCombine_%g_throw_step*.root toy_%g.root\n"%(itoy,itoy))
@@ -92,18 +96,21 @@ elif opt.batch == 'condor':
   fsub.write("itoy=$1\n\n")
   # Generate command
   fsub.write("#Generate command\n")
-  gen_cmd = "combine %s -m %.3f -M GenerateOnly --saveWorkspace --toysFrequentist --bypassFrequentistFit -t 1 %s -s -1 -n _${itoy}_gen_step"%(inputWSFile,mh_bf,setParamStr)
+  fsub.write("echo Generating...\n") #FIemmi
+  gen_cmd = "combine %s -m %.3f -M GenerateOnly --saveWorkspace --saveToys --toysFrequentist --bypassFrequentistFit -t 1 %s -s -1 -n _${itoy}_gen_step"%(inputWSFile,mh_bf,setParamStr) #FIemmi
   if opt.loadSnapshot is not None: gen_cmd += " --snapshotName %s"%opt.loadSnapshot
   fsub.write("%s\n\n"%gen_cmd)
   # Fit cmd
   fsub.write("#Fit command\n")
+  fsub.write("echo Fitting...\n") #FIemmi
   fsub.write("mv higgsCombine_${itoy}_gen_step*.root gen_${itoy}.root\n")
-  fit_cmd = "combine gen_${itoy}.root -m %.3f -M MultiDimFit -P %s --floatOtherPOIs=1 --saveWorkspace --toysFrequentist --bypassFrequentistFit -t 1 %s -s -1 -n _${itoy}_fit_step --cminDefaultMinimizerStrategy 0 --X-rtd MINIMIZER_freezeDisassociatedParams --X-rtd MINIMIZER_multiMin_hideConstants --X-rtd MINIMIZER_multiMin_maskConstraints --X-rtd MINIMIZER_multiMin_maskChannels=2"%(mh_bf,opt.POIs.split(",")[0],setParamStr)
+  fit_cmd = "combine %s -t 1 --toysFile=gen_${itoy}.root -m %.3f -M MultiDimFit -P %s --floatOtherPOIs=1 --saveWorkspace --toysFrequentist --bypassFrequentistFit %s -n _${itoy}_fit_step --cminDefaultMinimizerStrategy 0 --X-rtd MINIMIZER_freezeDisassociatedParams --X-rtd MINIMIZER_multiMin_hideConstants --X-rtd MINIMIZER_multiMin_maskConstraints --X-rtd MINIMIZER_multiMin_maskChannels=2"%(inputWSFile,mh_bf,opt.POIs.split(",")[0],setParamStr)
   fsub.write("%s\n\n"%fit_cmd)
   # Throw cmd
   fsub.write("#Throw command\n")
+  fsub.write("echo Throwing...\n") #FIemmi
   fsub.write("mv higgsCombine_${itoy}_fit_step*.root fit_${itoy}.root\n")
-  throw_cmd = "combine fit_${itoy}.root -m %.3f --snapshotName MultiDimFit -M GenerateOnly --saveToys --toysFrequentist --bypassFrequentistFit -t -1 -n _${itoy}_throw_step %s"%(mh_bf,setParam0Str)
+  throw_cmd = "combine fit_${itoy}.root -m %.3f --snapshotName MultiDimFit -M GenerateOnly --saveToys --saveWorkspace --toysFrequentist --bypassFrequentistFit -t -1 -s -1 -n _${itoy}_throw_step %s"%(mh_bf,setParam0Str)
   fsub.write("%s\n\n"%throw_cmd)
   # Clean up
   fsub.write("mv higgsCombine_${itoy}_throw_step*.root toy_${itoy}.root\n")
@@ -119,6 +126,7 @@ elif opt.batch == 'condor':
   fcondor.write("log                   = %s/src/flashggFinalFit/Plots/SplusBModels%s/toys/jobs/sub_toys.$(ClusterId).log\n\n"%(os.environ['CMSSW_BASE'],opt.ext))
   fcondor.write("on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)\n")
   fcondor.write("periodic_release =  (NumJobStarts < 3) && ((CurrentTime - EnteredCurrentStatus) > 600)\n\n")
+  fcondor.write("requirements = (TARGET.OpSysAndVer =?= \"%s\")\n"%opt.machine) 
   fcondor.write("+JobFlavour = \"%s\"\n"%opt.queue)
   fcondor.write("queue %s\n"%opt.nToys)
 

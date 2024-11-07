@@ -46,12 +46,10 @@ def get_options():
   parser.add_option("--ext", dest="ext", default='', help="Extension for saving")
   parser.add_option("--mass", dest="mass", default=None, help="Higgs mass")
   parser.add_option("--xvar", dest="xvar", default="CMS_hgg_mass,m_{#gamma#gamma},GeV", help="X-variable: name,title,units")
-  parser.add_option("--nBins", dest="nBins", default=80, type='int', help="Number of bins")
+  parser.add_option("--nBins", dest="nBins", default=60, type='int', help="Number of bins")
   parser.add_option("--pdfNBins", dest="pdfNBins", default=3200, type='int', help="Number of bins")
   parser.add_option("--translateCats", dest="translateCats", default=None, help="JSON to store cat translations")
   parser.add_option("--translatePOIs", dest="translatePOIs", default=None, help="JSON to store poi translations")
-  parser.add_option("--problematicCats", dest="problematicCats", default='', help='Problematic analysis categories to skip when processing all')
-  parser.add_option("--doHHMjjFix", dest="doHHMjjFix", default=False, action="store_true", help="Do fix for HH analysis where some cats have different Mjj var")
   return parser.parse_args()
 (opt,args) = get_options()
 
@@ -85,25 +83,6 @@ xvar_arglist, xvar_argset = ROOT.RooArgList(xvar), ROOT.RooArgSet(xvar)
 wxvar_arglist, wxvar_argset = ROOT.RooArgList(xvar,weight), ROOT.RooArgSet(xvar,weight)
 chan = w.cat("CMS_channel")
 
-# Define HH fix variable
-catsfix = ['DoubleHTag_10_13TeV','DoubleHTag_11_13TeV']
-if opt.doHHMjjFix:
-  xvarfix = w.var("%s_90GeV"%opt.xvar.split(",")[0])
-  xvarfix.SetTitle(opt.xvar.split(",")[1])
-  xvarfix.setPlotLabel(opt.xvar.split(",")[1])
-  xvarfix.setUnit(opt.xvar.split(",")[2])
-  xvarfix_arglist, xvarfix_argset = ROOT.RooArgList(xvarfix), ROOT.RooArgSet(xvarfix)
-  wxvarfix_arglist, wxvarfix_argset = ROOT.RooArgList(xvarfix,weight), ROOT.RooArgSet(xvarfix,weight)
-  fixrangeRatio = (xvarfix.getMax()-xvarfix.getMin())/(xvar.getMax()-xvar.getMin())
-  print " --> HH fix: using Mjj_90GeV variable for cats: %s"%(",".join(catsfix))
-  # Check: number of bins for 
-  if not (fixrangeRatio*opt.nBins)%1 == 0:
-    print "     * [ERROR] nBins for Mjj_90GeV is not an integer. Please use appropriate opt.nBins" 
-    leave()  
-  if not (fixrangeRatio*opt.pdfNBins)%1 == 0:
-    print "     * [ERROR] pdfNBins for Mjj_90GeV is not an integer. Please use appropriate opt.pdfNBins" 
-    leave()
-
 # Extract the total SB/B models
 sb_model, b_model = w.pdf("model_s"), w.pdf("model_b")
 
@@ -115,13 +94,13 @@ for cidx in range(chan.numTypes()):
   chan.setIndex(cidx)
   c = chan.getLabel()
   if(opt.cats!='all')&(c not in opt.cats.split(",")): continue
-  if( opt.doHHMjjFix )&( c in catsfix ): _xvar_argset, _wxvar_argset = xvarfix_argset, wxvarfix_argset
-  else: _xvar_argset, _wxvar_argset = xvar_argset, wxvar_argset
+  _xvar_argset, _wxvar_argset = xvar_argset, wxvar_argset
   data_cats[c] = ROOT.RooDataSet("d_%s"%c,"d_%s"%c,_xvar_argset)
   wdata_cats[c] = ROOT.RooDataSet("wd_%s"%c,"wd_%s"%c,_wxvar_argset,"weight")
 
 # Define cateogries
 cats = data_cats.keys()
+print("Categories: ", cats)
 
 # Load cat weights from json file if specified
 if opt.loadWeights != '':
@@ -141,12 +120,10 @@ else:
     Stot, Swtot = 0, 0
     for cidx in range(len(cats)):
       c = cats[cidx]
-      if c in opt.problematicCats.split(","): continue
-      if( opt.doHHMjjFix )&( c in catsfix ): _xvar, _xvar_argset = xvarfix, xvarfix_argset
-      else: _xvar, _xvar_argset = xvar, xvar_argset
+      _xvar, _xvar_argset = xvar, xvar_argset
       sbpdf, bpdf = sb_model.getPdf(c), b_model.getPdf(c)
       h_sbpdf_tmp = sbpdf.createHistogram("h_sb_tmp_pdfNBins_%s"%c,_xvar,ROOT.RooFit.Binning(opt.pdfNBins))
-      h_bpdf_tmp = bpdf.createHistogram("h_b_tmp_pdfNBins_%s"%c,_xvar,ROOT.RooFit.Binning(opt.pdfNBins))
+
       # Calculate yields
       SB, B = sbpdf.expectedEvents(_xvar_argset), bpdf.expectedEvents(_xvar_argset)
       S = SB-B 
@@ -168,12 +145,13 @@ else:
       xvar.setRange(rangeName,w.var("MH").getVal()-effSigma,w.var("MH").getVal()+effSigma)
       Beff = bpdf.createIntegral(_xvar_argset,_xvar_argset,rangeName).getVal()*B
       Seff = math.erf(1./math.sqrt(2))*S
-      # Caclualte weight for cat
+      # Calculate weight for cat
       wcat = Seff/(Seff+Beff)
       catsWeights[c] = wcat
       print "   * %s: S = %.2f, B = %.2f --> effSigma = %.2f, S_eff = %.2f, B_eff = %.2f"%(c,S,B,effSigma,Seff,Beff)
       Stot += S
       Swtot += S*wcat
+
     # Renormalise to nominal signal yield
     for c in cats: catsWeights[c] *= (Stot/Swtot)
     # Save cat weights if specified
@@ -220,7 +198,7 @@ if opt.doBands:
         print " --> Processing toy (%g/%g) ::: %s"%(tidx,len(toyFiles),toyFiles[tidx])
 	ftoy = ROOT.TFile(toyFiles[tidx])
 	toy = ftoy.Get("toys/toy_asimov")
-        # Fla for vetoing toy
+        # Flag for vetoing toy
         vetoToy = False
 	# Save bin contents in dict
 	values = {}
@@ -236,13 +214,11 @@ if opt.doBands:
 	  chan.setIndex(cidx)
 	  c = chan.getLabel()
 	  if( opt.cats == 'all' )|( c in opt.cats.split(",") ):
-            if( opt.doHHMjjFix )&( c in catsfix ): 
-              _xvar, _xvar_arglist = xvarfix, xvarfix_arglist
-            else:
-              _xvar, _xvar_arglist = xvar, xvar_arglist
-	    dtoy = toy.reduce("CMS_channel==CMS_channel::%g"%(cidx))
+            _xvar, _xvar_arglist = xvar, xvar_arglist
+	    #dtoy = toy.reduce("CMS_channel==CMS_channel::cat%g"%(cidx))
 	    htoy = _xvar.createHistogram("h_%s"%c,ROOT.RooFit.Binning(opt.nBins,xvar.getMin(),xvar.getMax()))
-	    dtoy.fillHistogram(htoy,_xvar_arglist)
+	    toy.fillHistogram(htoy,_xvar_arglist)
+	    #dtoy.fillHistogram(htoy,_xvar_arglist)
 	    for ibin in range(1,htoy.GetNbinsX()+1): 
 	      v = htoy.GetBinContent(ibin)
               if v!=v: vetoToy = True # Veto toys which have a NaN
@@ -255,13 +231,14 @@ if opt.doBands:
               if values['%s_1'%c] == 0: vetoToy = True
 	    # Clear memory
 	    htoy.Delete()
-	    dtoy.Delete()
+	    #dtoy.Delete()
         toy.Delete()
         ftoy.Close()
 	# Add values to dataframe
 	if not vetoToy: df_bands.loc[len(df_bands)] = values
         else: print "   --> Toy veto: zero entries in first bin"
-      # Savin toy yields dataframe to pickle file
+        print("df_bands = ", df_bands)
+      # Saving toy yields dataframe to pickle file
       if opt.saveToyYields:
         print "      * Saving toy yields to: SplusBModels%s/toyYields_%s.pkl"%(opt.ext,opt.xvar.split(",")[0])
         with open("SplusBModels%s/toyYields_%s.pkl"%(opt.ext,opt.xvar.split(",")[0]),"w") as fD: pickle.dump(df_bands,fD)
@@ -271,14 +248,8 @@ for cidx in range(len(cats)):
   c = cats[cidx]
   d = data_cats[c]
   wd = wdata_cats[c]
-  if c in opt.problematicCats.split(","): continue
-  # If HH fix then set up which vars to use
-  if( opt.doHHMjjFix )&( c in catsfix ):
-    _xvar, _xvar_argset, _xvar_arglist = xvarfix, xvarfix_argset, xvarfix_arglist 
-    _reduceRange = [xvarfix.getMin(),xvarfix.getMax()]
-  else:
-    _xvar, _xvar_argset, _xvar_arglist = xvar, xvar_argset, xvar_arglist
-    _reduceRange = None
+  _xvar, _xvar_argset, _xvar_arglist = xvar, xvar_argset, xvar_arglist
+  _reduceRange = None
 
   print " --> Processing category: %s"%c
 
@@ -420,7 +391,9 @@ for cidx in range(len(cats)):
   if not opt.skipIndividualCatPlots:
     print "    * making plot"
     if not os.path.isdir("./SplusBModels%s"%(opt.ext)): os.system("mkdir ./SplusBModels%s"%(opt.ext))
-    if opt.doBands: makeSplusBPlot(w,h_data,h_sbpdf,h_bpdf,h_spdf,h_data_ratio,h_bpdf_ratio,h_spdf_ratio,c,opt,df_bands,_reduceRange)
+    if opt.doBands: 
+      print("---MakingPlots!")
+      makeSplusBPlot(w,h_data,h_sbpdf,h_bpdf,h_spdf,h_data_ratio,h_bpdf_ratio,h_spdf_ratio,c,opt,df_bands,_reduceRange)
     else: makeSplusBPlot(w,h_data,h_sbpdf,h_bpdf,h_spdf,h_data_ratio,h_bpdf_ratio,h_spdf_ratio,c,opt,None,_reduceRange)
 
   # Delete histograms
@@ -443,8 +416,7 @@ for cidx in range(len(cats)):
 
 # Finished processing individual categories: if all then plot all
 if( len(opt.cats.split(",")) > 1 )|( opt.cats == 'all' ):
-  if opt.doHHMjjFix: _reduceRange = [xvarfix.getMin(),xvarfix.getMax()]
-  else: _reduceRange = None
+  _reduceRange = None
   if opt.doSumCategories:
     if not os.path.isdir("./SplusBModels%s"%(opt.ext)): os.system("mkdir ./SplusBModels%s"%(opt.ext))
     print " --> Making plot for sum of categories"

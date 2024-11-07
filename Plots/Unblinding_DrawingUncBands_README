@@ -1,0 +1,23 @@
+
+
+0) Make a directory where to work:
+   -------------------------------
+   mkdir SplusBModels_AllData_cat0
+
+
+1) Fit the workspace in the datacard
+   ---------------------------------
+   cd SplusBModels_AllData_cat0
+   cp ../../../Combine/cards/AllData/sliding_50.0GeV_cat0.txt .
+   text2workspace.py sliding_50.0GeV_cat0.txt sliding_50.0GeV_cat0.root
+   combine sliding_50.0GeV_cat0.root -m 50.000 -M MultiDimFit -P r --floatOtherPOIs=1 --freezeParameters MH --saveWorkspace  -n _initialSnapshot --cminDefaultMinimizerStrategy 0 --X-rtd MINIMIZER_freezeDisassociatedParams --X-rtd MINIMIZER_multiMin_hideConstants --X-rtd MINIMIZER_multiMin_maskConstraints --X-rtd MINIMIZER_multiMin_maskChannels=2
+
+
+2) Throw toys starting from the snapshot of previous step
+   ------------------------------------------------------
+   cd ..
+   python makeToys.py --inputWSFile SplusBModels_AllData_cat0/higgsCombine_initialSnapshot.MultiDimFit.mH50.root --loadSnapshot MultiDimFit --ext _AllData_cat0 --nToys 1000 --dryRun --batch condor 
+
+3) Plotting step: 
+   --------------
+   python makeSplusBModelPlot.py --inputWSFile SplusBModels_AllData_cat0/higgsCombine_initialSnapshot.MultiDimFit.mH50.root --loadSnapshot MultiDimFit --cats all --ext _AllData_cat0 --mass 50  --unblind  --doBkgRenormalization --nBins 60 --doZeroes --doBands
