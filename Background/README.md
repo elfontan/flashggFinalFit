@@ -1,5 +1,16 @@
 # Background Modelling
 
+Patch for Hbb turn on + Z spectrum fit: example of usage with a few options active + single category treatment: 
+
+`./bin/fTest --infilename /pnfs/psi.ch/cms/trivcat/store/user/gcelotto/ws_dt_fit/workspace_step2.root --ncats 1 --singleCat 1 --includeTurnOn 1 --includeZ 1 --rebinFactor 1  --outDir plots/fTest_5families_functionalities --iterativeFit 0 --blindSignalRegion 1 --saveMultiPdf multipdf.root`
+
+multipdf.root contains the multipdf with the selected functions + dataHist for data - it does not include the Z peak, that is used only in the fitting iterations to check on chi2 and Z yield predictions. 
+
+NOTES: 
+1) there are a few hardcoded quantities (workspace default file, workspace default name, data name, xvar, blinding window) be sure to update them and remake 
+2) iterativeFit function is work in progress - do not use
+3) Turn on function can be changed: default is Fermi-dirac, one can option erf and double exp via the dedicated option --turnOnType
+
 This is where the background model is determined. This is the only package yet to be pythonised for the new Final Fits. We have introduced a new mode for running the fTest `fTestParallel` which creates a separate job per analysis category. These jobs can then be submitted in parallel, greatly speeding up the process!
 
 The S+B plotting functionalities in this package have for now been depleted. You can produce the traditional blinded signal + bkg model plots using the `../Plots/makeSplusBModelPlot.py` script (see the `Plots` package for mode details). The `fTestParallel` will by default still produce the standard multipdf style plots.
