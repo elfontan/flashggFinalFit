@@ -8,6 +8,7 @@
 #include "RooExponential.h"
 #include "../interface/RooPowerLaw.h"
 #include "../interface/RooPowerLawSum.h"
+#include "../interface/RooExponentialSum.h"
 #include "RooKeysPdf.h"
 #include "RooAddPdf.h"
 #include "RooDataHist.h"
@@ -77,15 +78,44 @@ RooAbsPdf* PdfModelBuilder::getChebychev(string prefix, int order){
   RooArgList *coeffList = new RooArgList();
   for (int i=0; i<order; i++){
     string name = Form("%s_p%d",prefix.c_str(),i);
-    //params.insert(pair<string,RooRealVar*>(name, new RooRealVar(name.c_str(),name.c_str(),1.0,0.,5.)));
-    RooRealVar *param = new RooRealVar(name.c_str(),name.c_str(),0.01,-10.,10.);
-    //RooFormulaVar *form = new RooFormulaVar(Form("%s_sq",name.c_str()),Form("%s_sq",name.c_str()),"@0*@0",RooArgList(*param));
+    // Much more restrictive ranges to prevent negative PDFs
+    // Chebychev polynomials can easily go negative with large coefficients
+    double start = (i==0) ? 0.1 : 0.01;  // Positive starting values
+    double minVal, maxVal;
+    if (i==0) {
+      // First coefficient controls overall normalization
+      minVal = -0.5; maxVal = 0.5;
+    } else if (i==1) {
+      // Second coefficient controls linear trend
+      minVal = -0.3; maxVal = 0.3; 
+    } else {
+      // Higher order coefficients should be very small
+      minVal = -0.1; maxVal = 0.1;
+    }
+    RooRealVar *param = new RooRealVar(name.c_str(),name.c_str(),start,minVal,maxVal);
     params.insert(pair<string,RooRealVar*>(name,param));
-    //prods.insert(pair<string,RooFormulaVar*>(name,form));
     coeffList->add(*params[name]);
   }
-  //RooChebychev *cheb = new RooChebychev(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
-  RooPolynomial *cheb = new RooPolynomial(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
+  
+  // Use Chebychev directly with better numerical stability
+  RooChebychev *cheb = new RooChebychev(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
+  
+  // Test if the polynomial can go negative in the fit range
+  // Sample a few points to check
+  double xmin = obs_var->getMin();
+  double xmax = obs_var->getMax();
+  bool hasNegativeValues = false;
+  for (int test_i = 0; test_i < 10 && !hasNegativeValues; test_i++) {
+    double test_x = xmin + test_i * (xmax - xmin) / 9.0;
+    obs_var->setVal(test_x);
+    double val = cheb->getVal();
+    if (val <= 0) {
+      hasNegativeValues = true;
+      cout << "[WARNING] Chebychev polynomial goes negative at x=" << test_x 
+           << " (val=" << val << ") with current parameter initialization" << endl;
+    }
+  }
+  
   return cheb;
   //bkgPdfs.insert(pair<string,RooAbsPdf*>(bern->GetName(),bern));
 
@@ -97,13 +127,14 @@ RooAbsPdf* PdfModelBuilder::getBernstein(string prefix, int order){
   //coeffList->add(RooConst(1.0)); // no need for cnstant in this interface
   for (int i=0; i<order; i++){
     string name = Form("%s_p%d",prefix.c_str(),i);
-    //params.insert(pair<string,RooRealVar*>(name, new RooRealVar(name.c_str(),name.c_str(),1.0,0.,5.)));
-    RooRealVar *param = new RooRealVar(name.c_str(),name.c_str(),0.1*(i+1),-15.,15.);
+    // Use smaller, more stable parameter ranges
+    RooRealVar *param = new RooRealVar(name.c_str(),name.c_str(),1.0,0.01,100.);
     RooFormulaVar *form = new RooFormulaVar(Form("%s_sq",name.c_str()),Form("%s_sq",name.c_str()),"@0*@0",RooArgList(*param));
     params.insert(pair<string,RooRealVar*>(name,param));
     prods.insert(pair<string,RooFormulaVar*>(name,form));
     coeffList->add(*prods[name]);
   }
+  
   //RooBernstein *bern = new RooBernstein(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
   if (order==1) {
 	RooBernsteinFast<1> *bern = new RooBernsteinFast<1>(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
@@ -210,14 +241,14 @@ RooAbsPdf* PdfModelBuilder::getExponential(string prefix, int order){
     double low=-2.;
     double high=0.;
     if (order>0){
-      start=-0.001/double(i);
+      start=-0.001/double(i+1);
       low=-0.01;
       high=0.01;
     }
     RooRealVar *var = new RooRealVar(Form("%s_p%d",prefix.c_str(),i),Form("%s_p%d",prefix.c_str(),i),start,low,high);
     coefList.add(*var);
   }
-  RooPowerLawSum *exp = new RooPowerLawSum(prefix.c_str(),prefix.c_str(),*obs_var,coefList);
+  RooExponentialSum *exp = new RooExponentialSum(prefix.c_str(),prefix.c_str(),*obs_var,coefList);
   return exp;
   //bkgPdfs.insert(pair<string,RooAbsPdf*>(exp->GetName(),exp));
 
@@ -352,7 +383,7 @@ RooAbsPdf* PdfModelBuilder::getExponentialSingle(string prefix, int order){
     for (int i=1; i<=nexps; i++){
       string name =  Form("%s_p%d",prefix.c_str(),i);
       string ename =  Form("%s_e%d",prefix.c_str(),i);
-      params.insert(pair<string,RooRealVar*>(name, new RooRealVar(name.c_str(),name.c_str(),TMath::Max(-1.,-0.04*(i+1)),-1.,0.)));
+      params.insert(pair<string,RooRealVar*>(name, new RooRealVar(name.c_str(),name.c_str(),TMath::Max(-0.05,-0.01*(i+1)),-0.1,0.)));  // Range ristretto basato su valori osservati
       utilities.insert(pair<string,RooAbsPdf*>(ename, new RooExponential(ename.c_str(),ename.c_str(),*obs_var,*params[name])));
       exps->add(*utilities[ename]);
     }
@@ -729,4 +760,193 @@ void PdfModelBuilder::saveWorkspace(string filename){
 void PdfModelBuilder::saveWorkspace(TFile *file){
   file->cd();
   wsCache->Write();
+}
+
+RooAbsPdf* PdfModelBuilder::getPowerLawSimple(string prefix, int order){
+  // Simple power law: m^(-a) - very stable for high masses
+  // Allow flexible orders for F-test compatibility
+  
+  RooRealVar *slope = new RooRealVar(Form("%s_slope",prefix.c_str()),
+                                    Form("%s_slope",prefix.c_str()),
+                                    2.0, 0.1, 10.0);
+  params.insert(pair<string,RooRealVar*>(Form("%s_slope",prefix.c_str()), slope));
+  
+  // Create flexible power law that works for all orders
+  RooArgList argList(*obs_var, *slope);
+  string formula;
+  
+  if (order == 1) {
+    formula = "TMath::Power(@0, -@1)";
+  } else {
+    // For higher orders, add exponential terms for stability
+    RooArgList coeffList;
+    for (int i=2; i<=order; i++) {
+      string paramName = Form("%s_a%d", prefix.c_str(), i);
+      RooRealVar *coeff = new RooRealVar(paramName.c_str(), paramName.c_str(),
+                                        0.01, -10.0, 10.0);
+      params.insert(pair<string,RooRealVar*>(paramName, coeff));
+      coeffList.add(*coeff);
+      argList.add(*coeff);
+    }
+    
+    // Build exponential formula with polynomial terms
+    string expTerms = "";
+    for (int i=2; i<=order; i++) {
+      expTerms += Form(" - @%d*TMath::Power(@0,%d)", argList.getSize()-order+i-1, i-1);
+    }
+    formula = "TMath::Power(@0, -@1) * TMath::Exp(" + expTerms + ")";
+  }
+  
+  RooGenericPdf *pdf = new RooGenericPdf(prefix.c_str(), prefix.c_str(),
+                                         formula.c_str(), argList);
+  return pdf;
+}
+
+RooAbsPdf* PdfModelBuilder::getPowerLawCutoff(string prefix, int order){
+  // Power law with exponential cutoff: m^(-a) * exp(-b*m)
+  // Allow flexible orders for F-test compatibility
+  
+  RooRealVar *slope = new RooRealVar(Form("%s_slope",prefix.c_str()),
+                                    Form("%s_slope",prefix.c_str()),
+                                    2.0, 0.1, 10.0);
+  RooRealVar *cutoff = new RooRealVar(Form("%s_cutoff",prefix.c_str()),
+                                     Form("%s_cutoff",prefix.c_str()),
+                                     0.001, 0.0001, 0.1);
+  
+  params.insert(pair<string,RooRealVar*>(Form("%s_slope",prefix.c_str()), slope));
+  params.insert(pair<string,RooRealVar*>(Form("%s_cutoff",prefix.c_str()), cutoff));
+  
+  // For orders > 2, add polynomial terms for flexibility
+  RooArgList argList(*obs_var, *slope, *cutoff);
+  string formula;
+  
+  if (order <= 2) {
+    formula = "TMath::Power(@0, -@1) * TMath::Exp(-@2*@0)";
+  } else {
+    // For higher orders, add polynomial cutoff terms
+    RooArgList coeffList;
+    for (int i=3; i<=order; i++) {
+      string paramName = Form("%s_a%d", prefix.c_str(), i);
+      RooRealVar *coeff = new RooRealVar(paramName.c_str(), paramName.c_str(),
+                                        0.0, -1.0, 1.0);
+      params.insert(pair<string,RooRealVar*>(paramName, coeff));
+      coeffList.add(*coeff);
+      argList.add(*coeff);
+    }
+    
+    // Build polynomial cutoff formula
+    string polyTerms = "";
+    for (int i=3; i<=order; i++) {
+      polyTerms += Form(" + @%d*TMath::Power(@0,%d)", argList.getSize()-order+i-1, i-2);
+    }
+    formula = "TMath::Power(@0, -@1) * TMath::Exp(-@2*@0" + polyTerms + ")";
+  }
+  
+  RooGenericPdf *pdf = new RooGenericPdf(prefix.c_str(), prefix.c_str(),
+                                         formula.c_str(), argList);
+  return pdf;
+}
+
+RooAbsPdf* PdfModelBuilder::getExpLog(string prefix, int order){
+  // Exponential of polynomial in log(m): exp(a0 + a1*log(m/m0) + a2*log(m/m0)^2)
+  // Uses variable scaling for numerical stability
+  double m0 = 200.0; // Reference mass scale
+  
+  RooArgList coeffList;
+  for (int i=0; i<order; i++){
+    string name = Form("%s_a%d",prefix.c_str(),i);
+    double start = (i==0) ? -5.0 : -1.0;
+    RooRealVar *coeff = new RooRealVar(name.c_str(), name.c_str(),
+                                      start, -20.0, 20.0);
+    params.insert(pair<string,RooRealVar*>(name, coeff));
+    coeffList.add(*coeff);
+  }
+  
+  string formula;
+  if (order == 1) {
+    formula = "TMath::Exp(@1)";
+  } else if (order == 2) {
+    formula = "TMath::Exp(@1 + @2*TMath::Log(@0/" + to_string(m0) + "))";
+  } else if (order == 3) {
+    formula = "TMath::Exp(@1 + @2*TMath::Log(@0/" + to_string(m0) + ") + @3*TMath::Power(TMath::Log(@0/" + to_string(m0) + "),2))";
+  } else {
+    cerr << "ERROR -- ExpLog -- order > 3 not supported" << endl;
+    return NULL;
+  }
+  
+  RooArgList argList(*obs_var);
+  for (int i=0; i<coeffList.getSize(); i++) {
+    argList.add(*coeffList.at(i));
+  }
+  
+  RooGenericPdf *pdf = new RooGenericPdf(prefix.c_str(), prefix.c_str(),
+                                         formula.c_str(), argList);
+  return pdf;
+}
+
+RooAbsPdf* PdfModelBuilder::getDijet(string prefix, int order){
+  // Standard dijet function: (1-x)^p1 * x^(p2 + p3*ln(x)) where x = m/sqrt(s)
+  // Very stable for QCD backgrounds, used extensively in CMS
+  
+  double sqrts = 13000.0; // 13 TeV default
+  
+  // Allow flexible orders for F-test compatibility
+  
+  RooRealVar *p1 = new RooRealVar(Form("%s_p1",prefix.c_str()),
+                                  Form("%s_p1",prefix.c_str()),
+                                  5.0, 0, 14.0);    // Range allargato per evitare limiti (1-25)
+  RooRealVar *p2 = new RooRealVar(Form("%s_p2",prefix.c_str()),
+                                  Form("%s_p2",prefix.c_str()),
+                                  -3.0, -10.0, 2.0);  // Range allargato anche per p2 (-10 to +2)
+  
+  params.insert(pair<string,RooRealVar*>(Form("%s_p1",prefix.c_str()), p1));
+  params.insert(pair<string,RooRealVar*>(Form("%s_p2",prefix.c_str()), p2));
+  
+  string formula;
+  RooArgList argList(*obs_var, *p1, *p2);
+  
+  if (order == 1) {
+    formula = Form("TMath::Power(1.0 - @0/%.1f, @1)", sqrts);
+  } else if (order == 2) {
+    formula = Form("TMath::Power(1.0 - @0/%.1f, @1) * TMath::Power(@0/%.1f, @2)", sqrts, sqrts);
+  } else {
+    // For order >= 3, add additional parameters dynamically
+    RooRealVar *p3 = new RooRealVar(Form("%s_p3",prefix.c_str()),
+                                    Form("%s_p3",prefix.c_str()),
+                                    0.0, -1.5, 1.5);   // Range ristretto basato su valori osservati (-1.5 to +1.5)
+    params.insert(pair<string,RooRealVar*>(Form("%s_p3",prefix.c_str()), p3));
+    argList.add(*p3);
+    
+    // For orders > 3, add more polynomial terms
+    if (order > 3) {
+      for (int i=4; i<=order; i++) {
+        string paramName = Form("%s_p%d", prefix.c_str(), i);
+        RooRealVar *pi = new RooRealVar(paramName.c_str(), paramName.c_str(),
+                                       0.0, -1.0, 1.0);   // Range molto ristretto per ordini alti
+        params.insert(pair<string,RooRealVar*>(paramName, pi));
+        argList.add(*pi);
+      }
+      
+      // Build extended dijet formula with polynomial log terms
+      string logTerms = "";
+      for (int i=4; i<=order; i++) {
+        //logTerms += Form(" + @%d*TMath::Power(TMath::Log(@0/%d),%.1f)", 
+                      //  argList.getSize()-order+i-1, i-2, sqrts);
+	logTerms += Form(" + @%d*TMath::Power(TMath::Log(@0/%.1f),%d)",
+                 argList.getSize()-order+i-1,
+                 sqrts,
+                 i-2);
+      }
+      formula = Form("TMath::Power(1.0 - @0/%.1f, @1) * TMath::Power(@0/%.1f, @2 + @3*TMath::Log(@0/%.1f)%s)", 
+                    sqrts, sqrts, sqrts, logTerms.c_str());
+    } else {
+      // Standard order 3 formula
+      formula = Form("TMath::Power(1.0 - @0/%.1f, @1) * TMath::Power(@0/%.1f, @2 + @3*TMath::Log(@0/%.1f))", 
+                    sqrts, sqrts, sqrts);
+    }
+  }
+  
+  RooGenericPdf *pdf = new RooGenericPdf(prefix.c_str(), prefix.c_str(),
+                                         formula.c_str(), argList);
+  return pdf;
 }
