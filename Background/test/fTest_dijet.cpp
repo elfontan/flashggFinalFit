@@ -47,6 +47,7 @@
 #include "HiggsAnalysis/CombinedLimit/interface/RooDoubleCBFast.h"
 #include "RooProdPdf.h"
 #include "RooGenericPdf.h"
+#include "RooChi2Var.h"
 
 #include "../interface/PdfModelBuilder.h"
 #include <Math/PdfFuncMathCore.h>
@@ -100,23 +101,67 @@ static std::vector<Interval> mergeIntervals(std::vector<Interval> v) {
   return m;
 }
 static std::vector<Interval> complement(const std::vector<Interval>& excl, double a, double b) {
-  std::vector<Interval> out; double cur=a;
-  for (auto &iv : excl) {
-    double L = std::max(a, iv.lo), H = std::min(b, iv.hi);
-    if (H<=a || L>=b) continue; if (L>cur) out.push_back({cur,L}); cur = std::max(cur,H);
-  }
-  if (cur<b) out.push_back({cur,b});
-  return out;
+    std::vector<Interval> out;
+    double cur = a;
+    for (const auto& iv : excl) {
+        double L = std::max(a, iv.lo);
+        double H = std::min(b, iv.hi);
+        if (H <= a || L >= b) {
+            continue;
+        }
+        if (L > cur) {
+            out.push_back({cur, L});
+        }
+        cur = std::max(cur, H);
+    }
+
+    if (cur < b) {
+        out.push_back({cur, b});
+    }
+    return out;
 }
 static std::vector<Interval> parse_intervals(const std::string &spec, double massMin, double massMax) {
-  std::vector<Interval> out; if (spec.empty()) return out;
-  for (auto &tok : split_commas(spec)) {
-    if (tok.empty()) continue; auto dash = tok.find_first_of("-:"); if (dash==std::string::npos) continue;
-    double lo,hi; bool ok1=parse_endpoint(tok.substr(0,dash),massMin,massMax,lo); bool ok2=parse_endpoint(tok.substr(dash+1),massMin,massMax,hi);
-    if (ok1 && ok2) { if (hi<lo) std::swap(lo,hi); out.push_back({lo,hi}); }
-  }
-  for (auto &iv : out) { iv.lo = std::max(iv.lo, massMin); iv.hi = std::min(iv.hi, massMax); }
-  out.erase(std::remove_if(out.begin(), out.end(), [](auto &iv){ return iv.hi<=iv.lo; }), out.end());
+    std::vector<Interval> out;
+
+    if (spec.empty()) {
+        return out;
+    }
+
+    for (const auto& tok : split_commas(spec)) {
+        if (tok.empty()) {
+            continue;
+        }
+
+        auto dash = tok.find_first_of("-:");
+        if (dash == std::string::npos) {
+            continue;
+        }
+
+        double lo, hi;
+        bool ok1 = parse_endpoint(tok.substr(0, dash),
+                                  massMin, massMax, lo);
+        bool ok2 = parse_endpoint(tok.substr(dash + 1),
+                                  massMin, massMax, hi);
+        if (ok1 && ok2) {
+            if (hi < lo) {
+                std::swap(lo, hi);
+            }
+            out.push_back({lo, hi});
+        }
+    }
+
+    for (auto& iv : out) {
+        iv.lo = std::max(iv.lo, massMin);
+        iv.hi = std::min(iv.hi, massMax);
+    }
+
+    out.erase(
+        std::remove_if(out.begin(), out.end(),
+                       [](const Interval& iv) {
+                           return iv.hi <= iv.lo;
+                       }),
+        out.end()
+    );
   return mergeIntervals(out);
 }
 static std::string define_ranges(RooRealVar* x, const std::vector<Interval> &ivs, const std::string &basename) {
@@ -134,18 +179,20 @@ std::string gZModelName = "model_Z_c2";
 
 // Defining maximum order allowed for the FTest (configurable from CLI)
 int gMaxFtestOrder = 5;     // Reduced from 8 to 5 to reduce too high orders 
-int gMaxEnvelopeOrder = 6;  // Reduced from 10 to 6 to keep the envelope under control
+int gMaxEnvelopeOrder = 10; // Consider reducing from 10 to 6 to keep the envelope under control
 
 // Mass range configuration 
 float mN = 2.75;
 float sigma = 0.025;
 int nsigma = 10;
 float mN_low  = 300;
-float mN_high = 900;
+float mN_high = 1000;
 
 // not configured in main
-int nBinsForFit  = (mN_high-mN_low)/2;  // 2 GeV per bin instead of 0.25 GeV
-int nBinsForPlot = (mN_high-mN_low)/2;
+int nBinsForFit  = (mN_high-mN_low)/10;  // 10 GeV per bin: 150 bins in [0,1500] GeV
+int nBinsForPlot = (mN_high-mN_low)/10;
+//int nBinsForFit  = (mN_high-mN_low)/2;  // 2 GeV per bin instead of 0.25 GeV
+//int nBinsForPlot = (mN_high-mN_low)/2;
 
 RooRealVar *intLumi_ = new RooRealVar("IntLumi","hacked int lumi", 1000.);
 
@@ -182,7 +229,6 @@ RooAbsPdf* getPdf(PdfModelBuilder &pdfsModel, string type, int order, const char
     return NULL;
   }
 }
-#include "RooChi2Var.h"
 
 struct Chi2Result { double chi2, chi2red; int ndof; double pval; };
 
@@ -760,34 +806,10 @@ void plot(RooRealVar *mass, RooAbsPdf *pdf, RooAbsData *data, string name,vector
   // Fitta sui dati CR (o sul range di fitting che vuoi)
   pdf_extended.fitTo(*data);
 
-  // Estrai il fattore di normalizzazione fittato
+  // Extract normalization factor (after fit)
   double Nsr_norm = N_pdf.getVal();
   std::cout << "Nsr_norm (fittato): " << Nsr_norm << " sum entries "<<  data->sumEntries() <<  std::endl;
-/*  RooArgSet obs(*mass);
-  RooArgSet* paramsSet = pdf->getParameters(obs);
-  RooArgList paramsList(*paramsSet);
 
-  TH1* h = data->createHistogram("h", *mass);
-  RooParametricShapeBinPdf wrapPdf("wrap pdf", "wrappdf",
-                                 *pdf, *mass,
-                                 paramsList,
-                                 *h);
-    RooParametricShapeBinPdf("wrap pdf", "wrappdf", *pdf, *mass,pdf->getParameters(obs) ,data->createHistogram("h", mass) );
-    std::cout << "***********************************************after definition of RooParametricShapeBinPDf************" << std::endl;
-  if (N_pdf) {
-    double fitIntegral = pdf->createIntegral(*mass, NormSet(*mass), Range(sidebandRangeList.c_str()))->getVal();
-    double normVal = N_pdf->getVal();
-    Nvis = normVal * (fitIntegral );
-    std::cout << "[INFO] Using bkg_norm for Nvis: " << Nvis << " events" << std::endl;
-  } else {
-    if (fitWasBlinded) {
-      Nvis = data->sumEntries("1", sidebandRangeList.c_str());
-      std::cout << "[INFO] Blinded fit: Nvis = " << Nvis << " events in sidebands" << std::endl;
-    } else {
-      Nvis = data->sumEntries();
-      std::cout << "[INFO] Unblinded fit: Nvis = " << Nvis << " events total" << std::endl;
-    }
-  }*/
   std::cout << "[INFO] Plotting function over full mass range" << std::endl;
   if (fitWasBlinded) {
     // For blinded fits, normalize only in sidebands
@@ -909,7 +931,7 @@ void plot(RooRealVar *mass, RooAbsPdf *pdf, RooAbsData *data, string name,vector
   canv->SaveAs(Form("%s.png",name.c_str()));
   delete canv;
   delete lat;
-  // --- Nuovo plot CR/SR con predizione (versione RooPlot) ---
+  // --- New plot CR/SR with prediction (RooPlot version) ---
   if (dataWS) {
     RooDataHist* data_sr = dynamic_cast<RooDataHist*>(dataWS->data("data_sr_m300"));
     RooDataHist* data_cr = dynamic_cast<RooDataHist*>(dataWS->data("data_cr_m300"));
@@ -990,7 +1012,7 @@ void plot(RooRealVar *mass, RooAbsPdf *pdf, RooAbsData *data, string name,vector
       std::cout << "Atteso (I_cr * I_pdf): " << I_cr->getVal() * I_pdf->getVal() << std::endl;
       std::cout << yield_pred_sr<< "integral of cr*tf" << std::endl;
       std::cout << Nvis<< " Nvis" << std::endl;
-    //  std::cout << I_denG->getVal() << "integral of cr" << std::endl;
+      //  std::cout << I_denG->getVal() << "integral of cr" << std::endl;
       //  / I_denG->getVal();  // = ⟨f⟩_CR
       double Nsr_norm = I_prod->getVal()/10.;
       std::cout << " NORM FACTOR " << Nsr_norm <<std::endl;
@@ -1134,15 +1156,15 @@ void plot(RooRealVar *mass, RooMultiPdf *pdfs, RooCategory *catIndex, RooAbsData
     string pdfName = pdfs->getCurrentPdf()->GetName();
     std:: cout << "PDF Name: " << pdfName << std::endl; 
     
-    // Debug: stampa anche il nome del tipo di funzione
+    // Debug: Print puntion name 
     std::cout << "[DEBUG] Full PDF name: " << pdfName << std::endl;
     
-    // Logica semplificata per estrarre il nome dalla MultiPdf
+    // Simplified logic to extract the name of the MultiPdf
     std::string legendName = Form("PDF_%d", icat); // fallback
     
-    // Cerca pattern comuni nei nomi delle PDF
+    // Looking for common patterns in PDF names
     if (pdfName.find("bernstein") != std::string::npos || pdfName.find("Bernstein") != std::string::npos) {
-      // Cerca il numero dopo "bernstein" o "Bernstein"
+      // Look for a number after "bernstein" or "Bernstein"
       std::regex bernstein_regex(".*[Bb]ernstein([0-9]+).*");
       std::smatch match;
       if (std::regex_match(pdfName, match, bernstein_regex) && match.size() > 1) {
@@ -1177,7 +1199,7 @@ void plot(RooRealVar *mass, RooMultiPdf *pdfs, RooCategory *catIndex, RooAbsData
     } else if (pdfName.find("exponential") != std::string::npos || pdfName.find("Exponential") != std::string::npos) {
       legendName = "Exponential";
     } else {
-      // Se non trova pattern conosciuti, usa il nome completo o un fallback
+      // If a known pattern is not found, complete name or a fallback is used
       legendName = Form("Func_%d", icat);
     }
     
@@ -1207,14 +1229,14 @@ void plot(RooRealVar *mass, RooMultiPdf *pdfs, RooCategory *catIndex, RooAbsData
 void plot(RooRealVar *mass, map<string,RooAbsPdf*> pdfs, RooAbsData *data, string name, vector<string> flashggCats_, int cat, int bestFitPdf=-1, bool fitWasBlinded=true){
   int color[7] = {kCyan+1,kGreen+2,kAzure+2,kTeal+1,kSpring+2,kCyan+3,kGreen+1};
   TCanvas *canv = new TCanvas();
-  canv->SetLogy(); // Set log scale for y-axis
-  TLegend *leg = new TLegend(0.15,0.15,0.55,0.35);  // Legenda più compatta in basso a sinistra
+  canv->SetLogy(); 
+  TLegend *leg = new TLegend(0.15,0.15,0.55,0.35); 
   leg->SetFillColor(0);
-  leg->SetFillStyle(0);  // Trasparente
+  leg->SetFillStyle(0);  
   leg->SetLineColor(0);
-  leg->SetBorderSize(0); // Rimuove il bordo
-  leg->SetTextSize(0.03); // Dimensione del testo più piccola
-  leg->SetMargin(0.15);   // Margine tra simbolo e testo
+  leg->SetBorderSize(0); 
+  leg->SetTextSize(0.03); 
+  leg->SetMargin(0.15);  
   
   RooPlot *plot = mass->frame(mass->getMin(), mass->getMax());
   
@@ -1376,7 +1398,7 @@ int getBestFitFunction(RooMultiPdf *bkg, RooAbsData *data, RooCategory *cat, boo
 }
 
 // Function to create background PDF with optional turn-on function and Z resonance
-RooAbsPdf* createBackgroundWithTurnOn(PdfModelBuilder &pdfsModel, string type, int order, RooRealVar* mass, const char* ext, bool includeTurnOn = true, bool includeZ = false, RooWorkspace* dataWS = nullptr, std::string turnOnType = "Fermi") {
+RooAbsPdf* createBackgroundWithTurnOn(PdfModelBuilder &pdfsModel, string type, int order, RooRealVar* mass, const char* ext, bool includeTurnOn = true, bool includeZ = false, RooWorkspace* dataWS = nullptr, std::string turnOnType = "Erf") {
   RooAbsPdf *basePdf = getPdf(pdfsModel, type, order, ext);
   if (!basePdf) {
     cerr << "[ERROR] Could not create base PDF of type " << type << " order " << order << endl;
@@ -1392,7 +1414,7 @@ RooAbsPdf* createBackgroundWithTurnOn(PdfModelBuilder &pdfsModel, string type, i
     RooRealVar *beta = new RooRealVar(Form("%s_turnon_beta", ext), "Turn-on beta", 5, 0.1, 100);
     cout << "[INFO] Adding turn-on function for " << type << " order " << order << endl;
     RooGenericPdf *turnOnPdf = nullptr;
-    if (turnOnType == "Fermi") {
+    if (turnOnType == "Erf") {
       turnOnPdf = new RooGenericPdf(Form("%s_turnon", ext), "Fermi-Dirac turn-on", 
                                    "1.0/(1.0 + TMath::Exp((@1-@0)/@2))", 
                                    RooArgList(*mass, *cutoff, *beta));
@@ -1491,7 +1513,7 @@ int main(int argc, char* argv[]){
   lumi_sqrtS = "13.6 TeV";
   string year_ = "2024";
   string fileName;
-  string workspaceFile = "/afs/cern.ch/work/e/elfontan/private/dijetAnalysis_ScoutingRun3/BKGModelling/FittingDijetMass/ws/dijetWS_pp.root";
+  string workspaceFile = "";
   int ncats;
   int singleCategory;
   int catOffset;
@@ -1510,13 +1532,13 @@ int main(int argc, char* argv[]){
   vector<string> flashggCats_;
   bool isData_ =0;
   bool iterativeFit = false;
-  std::string turnOnType = "Fermi";
+  std::string turnOnType = "Erf"; // Fermi
 
   po::options_description desc("Allowed options");
   desc.add_options()
     ("help,h",                                                                                  "Show help")
     ("infilename,i", po::value<string>(&fileName),                                              "In file name")
-    ("workspace,w", po::value<string>(&workspaceFile)->default_value("/afs/cern.ch/work/e/elfontan/private/dijetAnalysis_ScoutingRun3/BKGModelling/FittingDijetMass/ws/dijetWS_pp.root"), "Workspace file with RooDataHist and Z model")
+    ("workspace,w", po::value<string>(&workspaceFile)->default_value(""), "Workspace file with RooDataHist and Z model")
     ("includeTurnOn", po::value<bool>(&includeTurnOn)->default_value(false),                    "Include turn-on function for low mass threshold")
     ("includeZ", po::value<bool>(&includeZ)->default_value(false),                             "Include Z resonance model from workspace")
     ("blindSignalRegion", po::value<bool>(&blindSignalRegion)->default_value(false),           "Blind signal region [100-140] GeV in fit (not just plots)")
@@ -1531,7 +1553,7 @@ int main(int argc, char* argv[]){
     ("isFlashgg",  po::value<int>(&isFlashgg_)->default_value(1),                               "Use Flashgg output ")
     ("isData",  po::value<bool>(&isData_)->default_value(0),                                    "Use Data not MC ")
     ("flashggCats,f", po::value<string>(&flashggCatsStr_)->default_value("UntaggedTag_0,UntaggedTag_1,UntaggedTag_2,UntaggedTag_3,UntaggedTag_4,VBFTag_0,VBFTag_1,VBFTag_2,TTHHadronicTag,TTHLeptonicTag,VHHadronicTag,VHTightTag,VHLooseTag,VHEtTag"),                  "Flashgg category names to consider")
-    ("year", po::value<string>(&year_)->default_value("2016"),                                  "Dataset year")
+    ("year", po::value<string>(&year_)->default_value("2024"),                                  "Dataset year")
     ("catOffset", po::value<int>(&catOffset)->default_value(0),                                 "Category numbering scheme offset")
     ("mN", po::value<float>(&mN)->default_value(2.75),                                          "Mass of the peak, for center of window")
     ("sigma", po::value<float>(&sigma)->default_value(0.025),                                   "Sigma of the peak, for size of window")
@@ -1539,8 +1561,9 @@ int main(int argc, char* argv[]){
     ("rebinFactor,r", po::value<int>()->default_value(1),                                       "Rebin factor to reduce number of bins (1=no rebinning)")
     ("verbose,v",                                                                               "Run with more output")
     ("iterativeFit", po::value<bool>(&iterativeFit)->default_value(false), "Enable iterative fitting: first fit [mass->getMin(),78]+>140 w/o Z, then [mass->getMin(),100]+>140 with Z")
-    ("turnOnType", po::value<std::string>(&turnOnType)->default_value("Fermi"), "Type of turn-on function: Fermi, Erf, DExp")
+    ("turnOnType", po::value<std::string>(&turnOnType)->default_value("Erf"), "Type of turn-on function: Fermi, Erf, DExp")
     // New options
+    ("cat-name", po::value<std::string>()->default_value("PP") , "Category name")
     ("ws-name", po::value<std::string>()->default_value("") , "Name of the RooWorkspace within the input file")
     ("mass-var", po::value<std::string>()->default_value("CMS_dijet_mass"), "RooRealVar name for dijet mass")
     ("data-name", po::value<std::string>()->default_value("") , "Dataset name (single category)")
@@ -1591,6 +1614,7 @@ int main(int argc, char* argv[]){
 
   // Command line options
   // ----------------------------------------
+  auto catnameDijet = vm["cat-name"].as<std::string>();
   auto wsName_opt  = vm["ws-name"].as<std::string>();
   auto massVarName = vm["mass-var"].as<std::string>();
   auto dataName    = vm["data-name"].as<std::string>();
@@ -1619,9 +1643,15 @@ int main(int argc, char* argv[]){
     return 1;
   }
   RooWorkspace *dataWS = nullptr;
-  if (!wsName_opt.empty() && dataWS) {
+  if (!wsName_opt.empty()) {
     dataWS = (RooWorkspace*)wsFile->Get(wsName_opt.c_str());
   } else {
+    dataWS = (RooWorkspace*)wsFile->Get("w");
+    if (!dataWS) dataWS = (RooWorkspace*)wsFile->Get("cms_hgg_workspace");
+    if (!dataWS) dataWS = (RooWorkspace*)wsFile->Get("wS");
+    if (!dataWS) dataWS = (RooWorkspace*)wsFile->Get("workspace");
+  }
+  if (!dataWS) {
     cerr << "[ERROR] Cannot find workspace in " << workspaceFile << endl;
     wsFile->ls();
     return 1;
@@ -1697,8 +1727,8 @@ int main(int argc, char* argv[]){
 
   std::string ext = is2011 ? "7TeV" : "8TeV";
   if( isFlashgg_ ){
-    if( year_ == "all" ){ ext = "13TeV"; }
-    else{ ext = Form("%s_13TeV",year_.c_str()); }
+    if( year_ == "all" ){ ext = "13p6TeV"; }
+    else{ ext = Form("%s_13p6TeV",year_.c_str()); }
   }
   std::cout << "[INFO] Number of categories to process: " << ncats << std::endl;
   for (int cat=0; cat<ncats; cat++){
@@ -2012,11 +2042,11 @@ int main(int argc, char* argv[]){
             }
             
             double gofProb = 0.0; 
-            plot(mass,bkgPdf,data,Form("%s/envelope_%s%d_%s",outDir.c_str(),funcType->c_str(),order,catname.c_str()),flashggCats_,fitStatus,&gofProb,chi2FromFit,blindSignalRegion,true,dataWS);
+            plot(mass,bkgPdf,data,Form("%s/EnvelopeComponents_Pulls/envelope_%s%d_%s",outDir.c_str(),funcType->c_str(),order,catname.c_str()),flashggCats_,fitStatus,&gofProb,chi2FromFit,blindSignalRegion,true,dataWS);
             if (includeZ && dataWS) {
               RooAbsPdf *zModel = dataWS->pdf(gZModelName.c_str());
               if (zModel) {
-                plotComponents(mass,bkgPdf,zModel,data,Form("%s/envelope_%s%d_%s",outDir.c_str(),funcType->c_str(),order,catname.c_str()),flashggCats_,fitStatus,&gofProb,chi2FromFit,blindSignalRegion);
+                plotComponents(mass,bkgPdf,zModel,data,Form("%s/EnvelopeComponents_Pulls/envelope_%s%d_%s",outDir.c_str(),funcType->c_str(),order,catname.c_str()),flashggCats_,fitStatus,&gofProb,chi2FromFit,blindSignalRegion);
               }
             }
             
@@ -2024,8 +2054,8 @@ int main(int argc, char* argv[]){
             cout << "[INFO] " << *funcType << " " << order << " " << thisNll << " " << f_test_prob << " " << gofProb << endl;
             
             // CMS envelope criteria
-            bool passes_f_test = (f_test_prob < 0.1);
-            bool passes_gof = (gofProb > 0.01);
+            bool passes_f_test = (f_test_prob < upperEnvThreshold);
+            bool passes_gof = (gofProb > minGofThreshold);
             bool include_in_envelope = false;
             
             if (passes_f_test) {
@@ -2080,7 +2110,8 @@ int main(int argc, char* argv[]){
                     delete params;
                   }
                   
-                  if (parametersStable) {
+                  //if (parametersStable && gofProb > minGofThreshold) {
+		  if (parametersStable) {
                     double myNll = 2.*thisNll;
                     std::cout << "[INFO] Adding to Envelope " << bkgPdf->GetName() << " p^F=" << f_test_prob 
                       << " GoF=" << gofProb << " 2xNLL + c is " << myNll + nparams_env <<  std::endl;
@@ -2132,7 +2163,7 @@ int main(int argc, char* argv[]){
 
     // Plot envelope-only functions (familyBestPdf contains one best function per family)
     if (saveMultiPdf && !familyBestPdf.empty()){
-      plot(mass,familyBestPdf,data,Form("%s/envelope_only_%s",outDir.c_str(),catname.c_str()),flashggCats_,cat,false);
+      plot(mass,familyBestPdf,data,Form("%s/EnvelopeComponents_Pulls/envelope_only_%s",outDir.c_str(),catname.c_str()),flashggCats_,cat,false);
       std::cout << "[INFO] Generated envelope-only plot with " << familyBestPdf.size() << " functions" << std::endl;
     }
 
@@ -2204,7 +2235,6 @@ int main(int argc, char* argv[]){
         
         // Check parameter stability and normalization for final selection
         double norm_check = 1.0; // Default to 1.0 if PDF is NULL
-        bool isStable = true;
         if (pdf) {
           // Check parameter stability
           RooArgSet* params = pdf->getParameters(*data);
@@ -2225,7 +2255,6 @@ int main(int argc, char* argv[]){
                          << ", error=" << param->getError()
                          << ", relError=" << relError 
                          << ", atBoundary=" << atBoundary << std::endl;
-                // NOTE: Not setting isStable=false anymore, just logging for debugging
               }
             }
           }
@@ -2268,6 +2297,7 @@ int main(int argc, char* argv[]){
       int bestFitPdfIndex = 0; // Default to first function
       
       // Find which PDF corresponds to the best envelope function
+      // --------------------------------------------------------
       for (int iPdf = 0; iPdf < finalStoredPdfs.getSize(); iPdf++) {
         RooAbsPdf* currentPdf = (RooAbsPdf*)finalStoredPdfs.at(iPdf);
         if (currentPdf) {
@@ -2290,9 +2320,12 @@ int main(int argc, char* argv[]){
       outputws->import(*pdf);
       outputws->import(catIndex);
       outputws->import(*data);
-      plot(mass,pdf,&catIndex,data,Form("%s/BKGModels_MultiPDFs/multipdf_%s",outDir.c_str(),catname2.c_str()),flashggCats_,cat,bestFitPdfIndex);
+      plot(mass,pdf,&catIndex,data,Form("%s/multipdf_cat%s",outDir.c_str(),catnameDijet.c_str()),flashggCats_,cat,bestFitPdfIndex);
+
       // Plot with correct names using finalPdfs
-      plot(mass,finalPdfs,data,Form("%s/BKGModels_MultiPDFs/multipdf_named_%s",outDir.c_str(),catname2.c_str()),flashggCats_,cat,bestFitPdfIndex,false);
+      // ---------------------------------------
+      plot(mass,finalPdfs,data,Form("%s/multipdf_cat%s",outDir.c_str(),catnameDijet.c_str()),flashggCats_,cat,bestFitPdfIndex,false);
+
     } // End saveMultiPdf block
   }  // End category loop
   
