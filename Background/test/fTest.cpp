@@ -64,8 +64,8 @@ bool runFtestCheckWithToys=false;
 float mN = 2.75;
 float sigma = 0.025;
 int nsigma = 10;
-float mN_low  = 150;
-float mN_high = 500;
+float mN_low  = 80;
+float mN_high = 800;
 
 // not configured in main
 int nBinsForFit  = 4*(mN_high-mN_low); // kept baseline values for Hgg 
@@ -745,12 +745,12 @@ void plot(RooRealVar *mass, RooAbsPdf *pdf, RooAbsData *data, string name,vector
   RooPlot *plot = mass->frame();
   
   // Blinding: escludi solo la SR [100,135] GeV
-  mass->setRange("blind_low", mass->getMin(), 100);   // Sideband basso
-  mass->setRange("blind_high", 135, mass->getMax()); // Sideband alto
+  mass->setRange("blind_low", mass->getMin(), 320);   // Sideband basso
+  mass->setRange("blind_high", 980, mass->getMax()); // Sideband alto
   
   // Fit: usa solo sidebands
-  mass->setRange("fit_low", mass->getMin(), 100);     // Low sideband: mass->getMin()-100 GeV
-  mass->setRange("fit_high", 135, mass->getMax());   // High sideband: 135-mass->getMax() GeV
+  mass->setRange("fit_low", mass->getMin(), 320);     // Low sideband: mass->getMin()-100 GeV
+  mass->setRange("fit_high", 980, mass->getMax());   // High sideband: 135-mass->getMax() GeV
   
   // Plot data con blinding SR se richiesto
   if (fitWasBlinded) {
@@ -888,12 +888,12 @@ void plot(RooRealVar *mass, RooMultiPdf *pdfs, RooCategory *catIndex, RooAbsData
   RooPlot *plot = mass->frame();
 
   // Blinding: escludi solo la SR [100,135] GeV
-  mass->setRange("blind_low", mass->getMin(), 100);   // Sideband basso
-  mass->setRange("blind_high", 135, mass->getMax()); // Sideband alto
+  mass->setRange("blind_low", mass->getMin(), 800);   // Sideband basso
+  mass->setRange("blind_high", 850, mass->getMax()); // Sideband alto
   
   // Fit: usa solo sidebands
-  mass->setRange("fit_low", mass->getMin(), 100);     // Low sideband: mass->getMin()-100 GeV
-  mass->setRange("fit_high", 135, mass->getMax());   // High sideband: 135-mass->getMax() GeV
+  mass->setRange("fit_low", mass->getMin(), 800);     // Low sideband: mass->getMin()-100 GeV
+  mass->setRange("fit_high", 850, mass->getMax());   // High sideband: 135-mass->getMax() GeV
   
   data->plotOn(plot,MarkerStyle(20),MarkerSize(0.8),CutRange("blind_low,blind_high")); // Plot escludendo la regione di segnale
   
@@ -966,12 +966,12 @@ void plot(RooRealVar *mass, map<string,RooAbsPdf*> pdfs, RooAbsData *data, strin
   RooPlot *plot = mass->frame();
 
   // Blinding: escludi solo la SR [100,135] GeV
-  mass->setRange("blind_low", mass->getMin(), 100);   // Sideband basso
-  mass->setRange("blind_high", 135, mass->getMax()); // Sideband alto
+  mass->setRange("blind_low", mass->getMin(), 800);   // Sideband basso
+  mass->setRange("blind_high", 850, mass->getMax()); // Sideband alto
   
   // Fit: usa solo sidebands
-  mass->setRange("fit_low", mass->getMin(), 100);     // Low sideband: mass->getMin()-100 GeV
-  mass->setRange("fit_high", 135, mass->getMax());   // High sideband: 135-mass->getMax() GeV
+  mass->setRange("fit_low", mass->getMin(), 800);     // Low sideband: mass->getMin()-100 GeV
+  mass->setRange("fit_high", 850, mass->getMax());   // High sideband: 135-mass->getMax() GeV
   
   data->plotOn(plot,MarkerStyle(20),MarkerSize(0.8), CutRange("blind_low,blind_high")); // Plot escludendo la regione di segnale
 
@@ -1254,10 +1254,10 @@ RooAbsPdf* createBackgroundWithTurnOn(PdfModelBuilder &pdfsModel, string type, i
 
 void runIterativeFits(RooRealVar* mass, RooAbsData* data, PdfModelBuilder& pdfsModel, RooWorkspace* dataWS, const std::string& ext, int order, const std::vector<std::string>& flashggCats_, int cat, const std::string& outDir, bool iterativeMode, const std::string& turnOnType) {
     // Primo fit: [mass->getMin(),78] e >140 senza Z
-    mass->setRange("fit_low", mass->getMin(), 78);
-    mass->setRange("fit_high", 140, mass->getMax());
-    mass->setRange("blind_low", mass->getMin(), 78);
-    mass->setRange("blind_high", 140, mass->getMax());
+    mass->setRange("fit_low", mass->getMin(), 800);
+    mass->setRange("fit_high", 850, mass->getMax());
+    mass->setRange("blind_low", mass->getMin(), 800);
+    mass->setRange("blind_high", 850, mass->getMax());
     bool includeZ = false;
     std::cout << "[ITERATIVE FIT] Primo fit: " << ext << " [ " << mass->getMin()<< ",78] e >140 senza Z" << std::endl;
     RooAbsPdf* bkgPdf1 = createBackgroundWithTurnOn(pdfsModel, ext, order, mass, ext.c_str(), true, includeZ, dataWS, turnOnType);
@@ -1269,10 +1269,10 @@ void runIterativeFits(RooRealVar* mass, RooAbsData* data, PdfModelBuilder& pdfsM
     std::cout << "[ITERATIVE FIT] Primo fit status: " << fitStatus1 << std::endl;
 
     // Secondo fit: [mass->getMin(),100] e >140 con Z
-    mass->setRange("fit_low", mass->getMin(), 100);
-    mass->setRange("fit_high", 140, mass->getMax());
-    mass->setRange("blind_low", mass->getMin(), 100);
-    mass->setRange("blind_high", 140, mass->getMax());
+    mass->setRange("fit_low", mass->getMin(), 800);
+    mass->setRange("fit_high", 850, mass->getMax());
+    mass->setRange("blind_low", mass->getMin(), 800);
+    mass->setRange("blind_high", 850, mass->getMax());
     includeZ = true;
     std::cout << "[ITERATIVE FIT] Secondo fit: " << ext << " [mass->getMin(),100] e >140 con Z" << std::endl;
     RooAbsPdf* bkgPdf2 = createBackgroundWithTurnOn(pdfsModel, ext, order, mass, ext.c_str(), true, includeZ, dataWS, turnOnType);
@@ -1291,13 +1291,14 @@ int main(int argc, char* argv[]){
   extraText  = "Preliminary";  // default extra text is "Preliminary"
   lumi_8TeV  = "19.1 fb^{-1}"; // default is "19.7 fb^{-1}"
   lumi_7TeV  = "4.9 fb^{-1}";  // default is "5.1 fb^{-1}"
-  lumi_sqrtS = "13 TeV";       // used with iPeriod = 0, e.g. for simulation-only plots (default is an empty string)
-  string year_ = "2016";
+  lumi_sqrtS = "13.6 TeV";       // used with iPeriod = 0, e.g. for simulation-only plots (default is an empty string)
+  string year_ = "2024";
   //int year_ = 2017;
 
   string fileName;
   // Default to your specific workspace
-  string workspaceFile = "/pnfs/psi.ch/cms/trivcat/store/user/gcelotto/ws_dt_fit/workspace_step2.root";
+  string workspaceFile = "/afs/cern.ch/work/e/elfontan/private/dijetAnalysis_ScoutingRun3/BKGModelling/FittingDijetMass/ws/dijetWS_res.root";
+  //string workspaceFile = "/pnfs/psi.ch/cms/trivcat/store/user/gcelotto/ws_dt_fit/workspace_step2.root";
   //string workspaceFile = " /t3home/ratramon/ggHBB/Btob_studies/bb_analysis/scripts/workspace.root";
   int ncats;
   int singleCategory;
@@ -1323,7 +1324,7 @@ int main(int argc, char* argv[]){
   desc.add_options()
     ("help,h",                                                                                  "Show help")
     ("infilename,i", po::value<string>(&fileName),                                              "In file name")
-    ("workspace,w", po::value<string>(&workspaceFile)->default_value("/pnfs/psi.ch/cms/trivcat/store/user/gcelotto/ws_dt_fit/workspace_step2.root"), "Workspace file with RooDataHist and Z model")
+    ("workspace,w", po::value<string>(&workspaceFile)->default_value("/afs/cern.ch/work/e/elfontan/private/dijetAnalysis_ScoutingRun3/BKGModelling/FittingDijetMass/ws/dijetWS_res.root"), "Workspace file with RooDataHist and Z model")
     ("includeTurnOn", po::value<bool>(&includeTurnOn)->default_value(false),                    "Include turn-on function for low mass threshold")
     ("includeZ", po::value<bool>(&includeZ)->default_value(false),                             "Include Z resonance model from workspace")
     ("blindSignalRegion", po::value<bool>(&blindSignalRegion)->default_value(false),           "Blind signal region [100-140] GeV in fit (not just plots)")
@@ -1422,11 +1423,11 @@ int main(int argc, char* argv[]){
   //RooWorkspace *dataWS = (RooWorkspace*)wsFile->Get("w");
   if (!dataWS) {
     // Try alternative workspace names
-    dataWS = (RooWorkspace*)wsFile->Get("cms_hgg_workspace");
+    dataWS = (RooWorkspace*)wsFile->Get("dijet_ws");
     if (!dataWS) {
-      dataWS = (RooWorkspace*)wsFile->Get("wS");
+      dataWS = (RooWorkspace*)wsFile->Get("dijet_ws");
       if (!dataWS) {
-        dataWS = (RooWorkspace*)wsFile->Get("workspace");
+        dataWS = (RooWorkspace*)wsFile->Get("dijet_ws");
         if (!dataWS) {
           cerr << "[ERROR] Cannot find workspace in " << workspaceFile << endl;
           wsFile->ls();
@@ -1506,17 +1507,20 @@ int main(int argc, char* argv[]){
   vector<map<string,RooAbsPdf*> > pdfs_vec;
 
   PdfModelBuilder pdfsModel;
-  RooRealVar *mass = (RooRealVar*)dataWS->var("dijet_mass_c2"); 
+  RooRealVar *mass = (RooRealVar*)dataWS->var("CMS_dijet_mass");
+  //RooRealVar *mass = (RooRealVar*)dataWS->var("dijet_ws"); 
   //RooRealVar *mass = (RooRealVar*)dataWS->var("mjj"); 
   std:: cout << "[INFO] Got mass from ws " << mass << std::endl;
   mass->Print("v");
   std:: cout << "[INFO] Mass range: [" << mass->getMin() << ", " << mass->getMax() << "]" << std::endl;
   
   // Define blinding ranges for fit and plot
-  mass->setRange("blind_low", mass->getMin(), 100);   // Sideband basso
-  mass->setRange("blind_high", 135, mass->getMax());   // Sideband alto
+  //mass->setRange("blind_low", mass->getMin(), 100);   // Sideband basso
+  //mass->setRange("blind_high", 135, mass->getMax());   // Sideband alto
+  mass->setRange("blind_low", mass->getMin(), 800);   // Sideband basso
+  mass->setRange("blind_high", 850, mass->getMax());   // Sideband alto
   if (blindSignalRegion) {
-    std::cout << "[INFO] Signal region [100-140] GeV will be blinded in fit" << std::endl;
+    std::cout << "[INFO] FAKE Signal region [800-850] GeV will be blinded in fit" << std::endl;
   }
   
   pdfsModel.setObsVar(mass);
@@ -1581,7 +1585,8 @@ int main(int argc, char* argv[]){
     */
 
     // Option 2 (equivalente): Usa come input un RooDataHist già binned
-    string data_name ="rooHist_data_cat2";// Form("CAT_roohist_data_mass_%s",flashggCats_[cat].c_str()); 
+    string data_name ="h_data_bkg_catRES";// Form("CAT_roohist_data_mass_%s",flashggCats_[cat].c_str()); 
+    //string data_name ="rooHist_data_cat2";// Form("CAT_roohist_data_mass_%s",flashggCats_[cat].c_str()); 
     //string data_name ="data_obs";// Form("CAT_roohist_data_mass_%s",flashggCats_[cat].c_str()); 
     RooDataHist  *data_in       = (RooDataHist*)dataWS->data(data_name.c_str());
     if (!data_in) {

@@ -1,17 +1,26 @@
 # Background Modelling
 
-Patch for Hbb turn on + Z spectrum fit: example of usage with a few options active + single category treatment: 
+Patch for low mass dijet analysis with 2024 Scouting data (starting point version taken from Raffaella Tramontano - development done for the Hbb turn on + Z spectrum fit).
 
-`./bin/fTest --infilename /pnfs/psi.ch/cms/trivcat/store/user/gcelotto/ws_dt_fit/workspace_step2.root --ncats 1 --singleCat 1 --includeTurnOn 1 --includeZ 1 --rebinFactor 1  --outDir plots/fTest_5families_functionalities --iterativeFit 0 --blindSignalRegion 1 --saveMultiPdf multipdf.root`
+Some commands are provided below as an example for each category fit in the low mass dijet analysis.
+```
+./bin/fTest_dijet --workspace /afs/cern.ch/work/e/elfontan/private/dijetAnalysis_ScoutingRun3/BKGModelling/FittingDijetMass/ws/dijetWS_vbf.root --ncats 1 --singleCat 1 --includeTurnOn 1 --includeZ 0 --rebinFactor 1  --outDir /eos/user/e/elfontan/www//dijetAnaRun3/BKGModelling/TEST  --iterativeFit 0 --blindSignalRegion 0 --saveMultiPdf multipdf_vbf.root --mass-var CMS_dijet_mass --ws-name dijet_ws --data-name h_data_bkg_catVBF
 
-multipdf.root contains the multipdf with the selected functions + dataHist for data - it does not include the Z peak, that is used only in the fitting iterations to check on chi2 and Z yield predictions. 
+./bin/fTest_dijet --workspace /afs/cern.ch/work/e/elfontan/private/dijetAnalysis_ScoutingRun3/BKGModelling/FittingDijetMass/ws/dijetWS_boo.root --ncats 1 --singleCat 1 --includeTurnOn 1 --includeZ 0 --rebinFactor 1  --outDir /eos/user/e/elfontan/www//dijetAnaRun3/BKGModelling/TEST  --iterativeFit 0 --blindSignalRegion 0 --saveMultiPdf multipdf_Boo.root --mass-var CMS_dijet_mass --ws-name dijet_ws --data-name h_data_bkg_catBoo
 
-NOTES: 
-1) there are a few hardcoded quantities (workspace default file, workspace default name, data name, xvar, blinding window) be sure to update them and remake 
-2) iterativeFit function is work in progress - do not use
+./bin/fTest_dijet --workspace /afs/cern.ch/work/e/elfontan/private/dijetAnalysis_ScoutingRun3/BKGModelling/FittingDijetMass/ws/dijetWS_res.root --ncats 1 --singleCat 1 --includeTurnOn 1 --includeZ 0 --rebinFactor 1  --outDir /eos/user/e/elfontan/www//dijetAnaRun3/BKGModelling/TEST --iterativeFit 0 --blindSignalRegion 0 --saveMultiPdf multipdf_res.root --mass-var CMS_dijet_mass --ws-name dijet_ws --data-name h_data_bkg_catRES
+
+./bin/fTest_dijet --workspace /afs/cern.ch/work/e/elfontan/private/dijetAnalysis_ScoutingRun3/BKGModelling/FittingDijetMass/ws/dijetWS_pp.root --ncats 1 --singleCat 1 --includeTurnOn 1 --includeZ 0 --rebinFactor 1  --outDir /eos/user/e/elfontan/www//dijetAnaRun3/BKGModelling/TEST  --iterativeFit 0 --blindSignalRegion 0 --saveMultiPdf multipdf_pp.root --mass-var CMS_dijet_mass --ws-name dijet_ws --data-name h_data_bkg_catPP
+```
+
+
+NOTES:
+1) Create an output directory for `BKGModels_MultiPDFs` to store the output files with the envelope saved from the fTest. The `multipdf_*.root` contains the envelope with the selected functions + dataHist for data.
+2) There are various options which can be tuned from command line. 
 3) Turn on function can be changed: default is Fermi-dirac, one can option erf and double exp via the dedicated option --turnOnType
+4) iterativeFit function is work in progress - do not use
 
-This is where the background model is determined. This is the only package yet to be pythonised for the new Final Fits. We have introduced a new mode for running the fTest `fTestParallel` which creates a separate job per analysis category. These jobs can then be submitted in parallel, greatly speeding up the process!
+This is where the background model is determined. This is the only package yet to be pythonised for the new FinalFits. We have introduced a new mode for running the fTest `fTestParallel` which creates a separate job per analysis category. These jobs can then be submitted in parallel, greatly speeding up the process!
 
 The S+B plotting functionalities in this package have for now been depleted. You can produce the traditional blinded signal + bkg model plots using the `../Plots/makeSplusBModelPlot.py` script (see the `Plots` package for mode details). The `fTestParallel` will by default still produce the standard multipdf style plots.
 
@@ -19,7 +28,7 @@ The new `fTestParallel` method for running the background scripts is only config
 
 ## Setup
 
-The background modelling package still needs to be built with it's own makefiles. Please note that there will be verbose warnings from BOOST etc, which can be ignored. So long as the `make` commands finish without error, then the compilation happened fine.:
+The background modelling package still needs to be built with its own makefiles. Please note that there will be verbose warnings from BOOST etc, which can be ignored. So long as the `make` commands finish without error, then the compilation happened fine.:
 
 ```
 cd ${CMSSW_BASE}/src/flashggFinalFit/Background
@@ -31,7 +40,7 @@ If it fails, first try `make clean` and then `make` again.
 
 ## Background f-Test
 
-Takes the output of flashgg (`allData.root`) and outputs a `RooMultiPdf` for each analysis category. The `RooMultiPdf` contains a large collection of background model pdfs from different functions families including exponential functions. Bernstein polynomials, Laurent series and power law functions. In the final fit, the choice of background model pdf from this collection is treated as an additional discrete nuisance parameter (discrete profiling method). This fTest determine which functions are included in the `RooMultiPdf` by requiring some (weak) goodness-of-fit constaint. Note, the normalisation and shape parameters of the background functions are still free to float in the final fit.
+Takes as input a data workspace and outputs a `RooMultiPdf` for each analysis category. The `RooMultiPdf` contains a large collection of background model pdfs from different functions families including exponential functions. Bernstein polynomials, Laurent series and power law functions. In the final fit, the choice of background model pdf from this collection is treated as an additional discrete nuisance parameter (discrete profiling method). This fTest determine which functions are included in the `RooMultiPdf` by requiring some (weak) goodness-of-fit constaint. Note, the normalisation and shape parameters of the background functions are still free to float in the final fit.
 
 The new functionality performs the fTest in parallel for each analysis category:
 ```
@@ -57,6 +66,7 @@ backgroundScriptCfg = {
 ```
 
 The output is a ROOT file containing the `RooMultiPdf`'s for each analysis category in `outdir_{ext}`. These are your background models (which must be copied across to the `Combine` directory when you get to the final fits step). In addition the standard fTest plots are produced in the `outdir_{ext}/bkgfTest-Data` directory, where the numbering matches the `catOffset` for each category (see the submission scripts).
+
 
 ### To do list
 

@@ -6,6 +6,8 @@
 #include "RooPolynomial.h"
 #include "RooGenericPdf.h"
 #include "RooExponential.h"
+#include "RooLinearVar.h"
+#include "RooFormulaVar.h"
 #include "../interface/RooPowerLaw.h"
 #include "../interface/RooPowerLawSum.h"
 #include "../interface/RooExponentialSum.h"
@@ -75,53 +77,98 @@ void PdfModelBuilder::setSignalModifierConstant(bool val){
 
 RooAbsPdf* PdfModelBuilder::getChebychev(string prefix, int order){
   
+  // Limit Chebychev order to 6 to avoid overfitting
+  if (order > 6) {
+    std::cout << "[WARNING] Chebychev order " << order << " exceeds maximum (6), returning NULL" << std::endl;
+    return NULL;
+  }
+  
   RooArgList *coeffList = new RooArgList();
   for (int i=0; i<order; i++){
     string name = Form("%s_p%d",prefix.c_str(),i);
-    // Much more restrictive ranges to prevent negative PDFs
-    // Chebychev polynomials can easily go negative with large coefficients
-    double start = (i==0) ? 0.1 : 0.01;  // Positive starting values
+    // With proper transformation, Chebychev coefficients can have more reasonable ranges
+    double start = (i==0) ? 0.5 : 0.0;  // Start with reasonable values
     double minVal, maxVal;
     if (i==0) {
-      // First coefficient controls overall normalization
-      minVal = -0.5; maxVal = 0.5;
+      // First coefficient controls overall normalization - can be larger with proper transformation
+      minVal = -2.0; maxVal = 2.0;
     } else if (i==1) {
       // Second coefficient controls linear trend
-      minVal = -0.3; maxVal = 0.3; 
+      minVal = -1.5; maxVal = 1.5; 
     } else {
-      // Higher order coefficients should be very small
-      minVal = -0.1; maxVal = 0.1;
+      // Higher order coefficients
+      minVal = -1.0; maxVal = 1.0;
     }
     RooRealVar *param = new RooRealVar(name.c_str(),name.c_str(),start,minVal,maxVal);
     params.insert(pair<string,RooRealVar*>(name,param));
     coeffList->add(*params[name]);
   }
   
-  // Use Chebychev directly with better numerical stability
-  RooChebychev *cheb = new RooChebychev(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
-  
-  // Test if the polynomial can go negative in the fit range
-  // Sample a few points to check
+  // Create transformed variable: x_transformed = 2*(x - x_min)/(x_max - x_min) - 1
+  // This maps [x_min, x_max] -> [-1, 1] for proper Chebychev polynomial definition
   double xmin = obs_var->getMin();
   double xmax = obs_var->getMax();
+  
+  cout << "[INFO] Creating Chebychev transformation: mapping [" << xmin << ", " << xmax << "] -> [-1, 1]" << endl;
+  
+  // Use RooLinearVar for proper transformation: a*x + b
+  // We want: y = 2*(x - xmin)/(xmax - xmin) - 1
+  // Which is: y = [2/(xmax-xmin)] * x + [-2*xmin/(xmax-xmin) - 1]
+  double a = 2.0 / (xmax - xmin);
+  double b = -2.0 * xmin / (xmax - xmin) - 1.0;
+  
+  string transform_name = Form("%s_transform", prefix.c_str());
+  RooRealVar *slope = new RooRealVar(Form("%s_slope", transform_name.c_str()), 
+                                    "slope", a);
+  RooRealVar *offset = new RooRealVar(Form("%s_offset", transform_name.c_str()), 
+                                     "offset", b);
+  slope->setConstant(true);
+  offset->setConstant(true);
+  
+  RooLinearVar *transformed_var = new RooLinearVar(transform_name.c_str(), 
+                                                   "Transformed variable for Chebychev", 
+                                                   *obs_var, *slope, *offset);
+  
+  cout << "[DEBUG] Transformation: y = " << a << " * x + " << b << endl;
+  
+  // Use Chebychev with the properly transformed variable
+  RooChebychev *cheb = new RooChebychev(prefix.c_str(),prefix.c_str(),*transformed_var,*coeffList);
+  
+  // Test if the polynomial can go negative in the fit range
+  // Sample points in the original range and check transformed values
   bool hasNegativeValues = false;
   for (int test_i = 0; test_i < 10 && !hasNegativeValues; test_i++) {
     double test_x = xmin + test_i * (xmax - xmin) / 9.0;
     obs_var->setVal(test_x);
+    double transformed_x = transformed_var->getVal();
     double val = cheb->getVal();
     if (val <= 0) {
       hasNegativeValues = true;
       cout << "[WARNING] Chebychev polynomial goes negative at x=" << test_x 
-           << " (val=" << val << ") with current parameter initialization" << endl;
+           << " (transformed=" << transformed_x << ", val=" << val << ")" << endl;
+    } else {
+      cout << "[DEBUG] x=" << test_x << " -> x_t=" << transformed_x << ", val=" << val << endl;
     }
   }
   
+  if (!hasNegativeValues) {
+    cout << "[INFO] Chebychev polynomial with proper transformation remains positive in fit range" << endl;
+  }
+  
+  // RooChebychev returns raw polynomial values, but RooFit handles normalization
+  // automatically during fits and plotting. No need for manual normalization.
   return cheb;
   //bkgPdfs.insert(pair<string,RooAbsPdf*>(bern->GetName(),bern));
 
 }
 
 RooAbsPdf* PdfModelBuilder::getBernstein(string prefix, int order){
+  
+  // Limit Bernstein order to 6 to avoid overfitting
+  if (order > 6) {
+    std::cout << "[WARNING] Bernstein order " << order << " exceeds maximum (6), returning NULL" << std::endl;
+    return NULL;
+  }
   
   RooArgList *coeffList = new RooArgList();
   //coeffList->add(RooConst(1.0)); // no need for cnstant in this interface
@@ -946,6 +993,7 @@ RooAbsPdf* PdfModelBuilder::getDijet(string prefix, int order){
     }
   }
   
+  // RooGenericPdf automatically handles normalization during fits and plotting
   RooGenericPdf *pdf = new RooGenericPdf(prefix.c_str(), prefix.c_str(),
                                          formula.c_str(), argList);
   return pdf;
