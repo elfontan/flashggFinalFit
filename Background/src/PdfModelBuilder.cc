@@ -165,8 +165,8 @@ RooAbsPdf* PdfModelBuilder::getChebychev(string prefix, int order){
 RooAbsPdf* PdfModelBuilder::getBernstein(string prefix, int order){
   
   // Limit Bernstein order to 6 to avoid overfitting
-  if (order > 6) {
-    std::cout << "[WARNING] Bernstein order " << order << " exceeds maximum (6), returning NULL" << std::endl;
+  if (order > 4) {
+    std::cout << "[WARNING] Bernstein order " << order << " exceeds maximum (4), returning NULL" << std::endl;
     return NULL;
   }
   
@@ -175,7 +175,7 @@ RooAbsPdf* PdfModelBuilder::getBernstein(string prefix, int order){
   for (int i=0; i<order; i++){
     string name = Form("%s_p%d",prefix.c_str(),i);
     // Use smaller, more stable parameter ranges
-    RooRealVar *param = new RooRealVar(name.c_str(),name.c_str(),1.0,0.01,100.);
+    RooRealVar *param = new RooRealVar(name.c_str(),name.c_str(),1.0,0.5,10.);
     RooFormulaVar *form = new RooFormulaVar(Form("%s_sq",name.c_str()),Form("%s_sq",name.c_str()),"@0*@0",RooArgList(*param));
     params.insert(pair<string,RooRealVar*>(name,param));
     prods.insert(pair<string,RooFormulaVar*>(name,form));
@@ -194,10 +194,10 @@ RooAbsPdf* PdfModelBuilder::getBernstein(string prefix, int order){
   	return bern;
   } else if (order==4) {
 	RooBernsteinFast<4> *bern = new RooBernsteinFast<4>(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
-  	return bern;
-  } else if (order==5) {
-	RooBernsteinFast<5> *bern = new RooBernsteinFast<5>(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
-  	return bern;
+	return bern;
+//  } else if (order==5) {
+//	RooBernsteinFast<5> *bern = new RooBernsteinFast<5>(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
+//  	return bern;
 //  } else if (order==6) {
 //	RooBernsteinFast<6> *bern = new RooBernsteinFast<6>(prefix.c_str(),prefix.c_str(),*obs_var,*coeffList);
 //  	return bern;
@@ -263,7 +263,10 @@ RooAbsPdf* PdfModelBuilder::getPowerLaw(string prefix, int order){
   
   RooArgList coefList;
   for (int i=0; i<order; i++){
-    double start=-2.;
+    double start = -0.001 / double(i+1);   // <-- NOTE: i+1, never divide by zero
+    double low   = -0.05;
+    double high  =  0.0;
+    /*double start=-2.;
     double low=-10.;
     double high=0.;
     if (order>0){
@@ -271,6 +274,7 @@ RooAbsPdf* PdfModelBuilder::getPowerLaw(string prefix, int order){
       low=-0.01;
       high=0.01;
     }
+    */
     RooRealVar *var = new RooRealVar(Form("%s_p%d",prefix.c_str(),i),Form("%s_p%d",prefix.c_str(),i),start,low,high);
     coefList.add(*var);
   }
@@ -284,14 +288,17 @@ RooAbsPdf* PdfModelBuilder::getExponential(string prefix, int order){
   
   RooArgList coefList;
   for (int i=0; i<order; i++){
-    double start=-1.;
+    double start = -0.001 / double(i+1);  // <-- NOTE: i+1, never divide by zero
+    double low   = -0.05;
+    double high  =  0.0;
+    /*double start=-1.;
     double low=-2.;
     double high=0.;
     if (order>0){
       start=-0.001/double(i+1);
       low=-0.01;
       high=0.01;
-    }
+      }*/
     RooRealVar *var = new RooRealVar(Form("%s_p%d",prefix.c_str(),i),Form("%s_p%d",prefix.c_str(),i),start,low,high);
     coefList.add(*var);
   }
@@ -935,16 +942,16 @@ RooAbsPdf* PdfModelBuilder::getDijet(string prefix, int order){
   // Standard dijet function: (1-x)^p1 * x^(p2 + p3*ln(x)) where x = m/sqrt(s)
   // Very stable for QCD backgrounds, used extensively in CMS
   
-  double sqrts = 13000.0; // 13 TeV default
+  double sqrts = 13600.0; // 13.6 TeV default
   
   // Allow flexible orders for F-test compatibility
   
   RooRealVar *p1 = new RooRealVar(Form("%s_p1",prefix.c_str()),
                                   Form("%s_p1",prefix.c_str()),
-                                  5.0, 0, 14.0);    // Range allargato per evitare limiti (1-25)
+                                  5.0, 0, 14.0);    // Enlarged range to avoid limits
   RooRealVar *p2 = new RooRealVar(Form("%s_p2",prefix.c_str()),
                                   Form("%s_p2",prefix.c_str()),
-                                  -3.0, -10.0, 2.0);  // Range allargato anche per p2 (-10 to +2)
+                                  -3.0, -10.0, 2.0);  // Enlarged range also for p2 (-10 to +2)
   
   params.insert(pair<string,RooRealVar*>(Form("%s_p1",prefix.c_str()), p1));
   params.insert(pair<string,RooRealVar*>(Form("%s_p2",prefix.c_str()), p2));
@@ -960,7 +967,7 @@ RooAbsPdf* PdfModelBuilder::getDijet(string prefix, int order){
     // For order >= 3, add additional parameters dynamically
     RooRealVar *p3 = new RooRealVar(Form("%s_p3",prefix.c_str()),
                                     Form("%s_p3",prefix.c_str()),
-                                    0.0, -1.5, 1.5);   // Range ristretto basato su valori osservati (-1.5 to +1.5)
+                                    0.0, -1.5, 1.5); 
     params.insert(pair<string,RooRealVar*>(Form("%s_p3",prefix.c_str()), p3));
     argList.add(*p3);
     

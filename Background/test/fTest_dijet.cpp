@@ -47,7 +47,6 @@
 #include "HiggsAnalysis/CombinedLimit/interface/RooDoubleCBFast.h"
 #include "RooProdPdf.h"
 #include "RooGenericPdf.h"
-#include "RooChi2Var.h"
 
 #include "../interface/PdfModelBuilder.h"
 #include <Math/PdfFuncMathCore.h>
@@ -68,10 +67,8 @@ namespace po = program_options;
 
 bool runFtestCheckWithToys=false;
 
-// === Helpers for blinding multi-range ===
+// --------------------------- Define Helpers ---------------------------------------
 struct Interval { double lo, hi; };
-static std::string sidebandRangeList = "blind_low,blind_high"; // default 
-static std::string blindRangeList    = "";                     // from CLI --blind
 
 static std::string trimcpy(const std::string &s) {
   auto a = s.begin(); while (a!=s.end() && std::isspace(static_cast<unsigned char>(*a))) ++a;
@@ -164,35 +161,86 @@ static std::vector<Interval> parse_intervals(const std::string &spec, double mas
     );
   return mergeIntervals(out);
 }
-static std::string define_ranges(RooRealVar* x, const std::vector<Interval> &ivs, const std::string &basename) {
-  std::vector<std::string> names; names.reserve(ivs.size());
-  for (size_t i=0;i<ivs.size();++i) {
-    std::string nm = basename + std::string("_") + std::to_string(i);
-    x->setRange(nm.c_str(), ivs[i].lo, ivs[i].hi); names.push_back(nm);
-  }
-  std::string list; for (size_t i=0;i<names.size();++i){ if (i) list+=","; list+=names[i]; }
-  return list;
+
+static double nDataInRange(RooAbsData* data){
+  return data->sumEntries();
 }
 
-// Z model name global (configurable from CLI)
-std::string gZModelName = "model_Z_c2";
+static void plotDataAndPdf(RooRealVar* x, RooPlot* fr_crsr,
+                           RooAbsData* data, RooAbsPdf* pdf,
+                           const char* dataName="data", const char* pdfName="pdf",
+                           int lineColor=kCyan, int lineWidth=2)
+{
+  // Data
+  data->plotOn(fr_crsr, RooFit::Name(dataName), MarkerStyle(20), MarkerSize(0.8));
+
+  // PDF normalised to the number of data events in the SAME plotted range
+  const double n = nDataInRange(data);
+
+  pdf->plotOn(fr_crsr, RooFit::Name(pdfName),
+	      LineColor(lineColor), LineWidth(lineWidth),
+	      RooFit::Normalization(n, RooAbsReal::NumEvent)); 
+}
+
+// --- Helpers for best fit functions and related legend
+static std::string toLower(std::string s){
+  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
+  return s;
+}
+
+static std::string prettyPdfLabel(const RooAbsPdf* pdf){
+  if(!pdf) return "NULL";
+  std::string n = toLower(pdf->GetName());
+
+  std::smatch m;
+
+  if (std::regex_search(n, m, std::regex("(bernstein|bern)([0-9]+)"))) return "Bernstein" + m[2].str();
+  if (std::regex_search(n, m, std::regex("(chebychev|cheb)([0-9]+)")))  return "Chebychev" + m[2].str();
+  if (std::regex_search(n, m, std::regex("(dijet)([0-9]+)")))            return "Dijet" + m[2].str();
+  if (std::regex_search(n, m, std::regex("(exp|exponential)([0-9]+)")))  return "Exponential" + m[2].str();
+  if (std::regex_search(n, m, std::regex("(pow|powerlaw)([0-9]+)")))     return "PowerLaw" + m[2].str();
+  if (std::regex_search(n, m, std::regex("(lau|laurent)([0-9]+)")))      return "Laurent" + m[2].str();
+
+  return pdf->GetName();
+}
+
+struct FitQuality {
+  double chi2red = -1; // chi2/ndof
+  int ndof = -1;
+  int nfloat = -1;
+  int nbins = -1;
+};
+
+static int countFloatingParams(RooAbsPdf* pdf, RooAbsData* data){
+  if(!pdf || !data) return 0;
+  std::unique_ptr<RooArgSet> pars(pdf->getParameters(*data));
+  std::unique_ptr<RooAbsCollection> floats(pars->selectByAttrib("Constant", kFALSE));
+  return floats ? floats->getSize() : 0;
+}
+
+// --------------------------- End Helpers ------------------------------------------
 
 // Defining maximum order allowed for the FTest (configurable from CLI)
 int gMaxFtestOrder = 5;     // Reduced from 8 to 5 to reduce too high orders 
-int gMaxEnvelopeOrder = 10; // Consider reducing from 10 to 6 to keep the envelope under control
+int gMaxEnvelopeOrder = 6; // Consider reducing from 10 to 6 to keep the envelope under control
 
-// Mass range configuration 
+// Testing alternative criteria to GoF
+const double maxChi2red = 20.0;        // chi2/ndof guardrail; avoids GoF p-value underflow issues
+const int    maxPerFamily = 3;        // keep up to N orders per family (set to 999 to keep all)
+const int    maxTotalEnvelope = 20;   // cap total PDFs per category to avoid blow-ups
+
+// Mass range configuration: [mN - nsigma*sigma, mN + nsigma*sigma] 
 float mN = 2.75;
 float sigma = 0.025;
 int nsigma = 10;
-float mN_low  = 300;
-float mN_high = 1000;
+float mN_low  = 50;
+float mN_high = 4500;
+//float mN_low  = 300;
+//float mN_high = 1000;
 
-// not configured in main
-int nBinsForFit  = (mN_high-mN_low)/10;  // 10 GeV per bin: 150 bins in [0,1500] GeV
-int nBinsForPlot = (mN_high-mN_low)/10;
-//int nBinsForFit  = (mN_high-mN_low)/2;  // 2 GeV per bin instead of 0.25 GeV
-//int nBinsForPlot = (mN_high-mN_low)/2;
+// Not configured in main
+int nBinsForFit  = (mN_high-mN_low)/2;  // 2 GeV per bin instead of 0.25 GeV
+int nBinsForPlot = (mN_high-mN_low)/2;
 
 RooRealVar *intLumi_ = new RooRealVar("IntLumi","hacked int lumi", 1000.);
 
@@ -203,7 +251,7 @@ RooAbsPdf* getPdf(PdfModelBuilder &pdfsModel, string type, int order, const char
   else if (type=="Exponential") return pdfsModel.getExponentialSingle(Form("%s_exp%d",ext,order),order); 
   else if (type=="ExponentialSum") return pdfsModel.getExponential(Form("%s_expsum%d",ext,order),order); 
   else if (type=="PowerLaw") {
-    if (order > 5) {  // Increased from 3 to 5 to allow more functions in the envelope
+    if (order > 3) {  // Increased from 3 to 4 to allow more functions in the envelope
       std::cout << "[WARNING] PowerLaw order " << order << " may cause numerical instability, skipping..." << std::endl;
       return NULL;
     }
@@ -230,237 +278,171 @@ RooAbsPdf* getPdf(PdfModelBuilder &pdfsModel, string type, int order, const char
   }
 }
 
+
 struct Chi2Result { double chi2, chi2red; int ndof; double pval; };
 
-// Restituisce una pdf estesa pronta per il χ² (possibilmente wrappando quella in ingresso)
-// Se trova 'bkg_norm' e/o 'z_norm' li somma e li usa come yield totale; altrimenti scala sui sideband.
-std::unique_ptr<RooAbsPdf> makeExtendedForGOF(RooAbsPdf* pdf, RooRealVar* mass,
-                                              RooAbsData* data, const char* rangeList) {
-  if (pdf->InheritsFrom("RooExtendPdf")) {
-    return std::unique_ptr<RooAbsPdf>((RooAbsPdf*)pdf);
-  }
-  if (pdf->InheritsFrom("RooAddPdf")) {
-    double nexp = pdf->expectedEvents(RooArgSet(*mass));
-    if (nexp > 0) return std::unique_ptr<RooAbsPdf>((RooAbsPdf*)pdf);
-  }
-  double norm_from_fit = 0.0;
-  std::unique_ptr<RooArgSet> pars(pdf->getParameters((const RooArgSet*)0));
-  TIterator* it = pars->createIterator();
-  while (RooAbsArg* a = (RooAbsArg*)it->Next()) {
-    TString n = a->GetName();
-    if (n.Contains("bkg_norm") || n.Contains("z_norm") || n.Contains("nbkg")) {
-      if (auto* rr = dynamic_cast<RooRealVar*>(a)) norm_from_fit += rr->getVal();
-    }
-  }
-  delete it;
-  RooRealVar* normVar = nullptr;
-  if (norm_from_fit > 0) {
-    normVar = new RooRealVar("__gof_norm","__gof_norm", norm_from_fit, 0., 1e15);
-    normVar->setConstant(kTRUE);
-  } else {
-    std::unique_ptr<RooAbsReal> frac_pdf(
-      pdf->createIntegral(RooArgSet(*mass), RooFit::NormSet(RooArgSet(*mass)),
-                          RooFit::Range(rangeList))
-    );
-    RooDataHist* dh = dynamic_cast<RooDataHist*>(data);
-    std::unique_ptr<RooDataHist> dh_owner;
-    if (!dh) { dh_owner.reset(new RooDataHist("__gof_dh","__gof_dh", RooArgSet(*mass), *data)); dh = dh_owner.get(); }
-    double n_sb = dh->sumEntries(nullptr, rangeList);
-    double f_sb = frac_pdf ? frac_pdf->getVal() : 0.;
-    double norm_val = (f_sb>0) ? (n_sb / f_sb) : n_sb;
-    normVar = new RooRealVar("__gof_norm","__gof_norm", norm_val, 0., 1e15);
-    normVar->setConstant(kTRUE);
-  }
-  return std::unique_ptr<RooAbsPdf>(new RooExtendPdf("__gof_ext","__gof_ext", *pdf, *normVar));
-}
-
 Chi2Result computeChi2ReducedExtended(RooRealVar* mass, RooAbsPdf* pdf_in, RooAbsData* data,
-                                      const char* rangeList) {
-    RooDataHist* dh = dynamic_cast<RooDataHist*>(data);
-    std::unique_ptr<RooDataHist> dh_owner;
-    if (!dh) {
-        dh_owner.reset(new RooDataHist("__chi2_dh","__chi2_dh", RooArgSet(*mass), *data));
-        dh = dh_owner.get();
+                                      const char* rangeList)
+{
+  RooDataHist* dh = dynamic_cast<RooDataHist*>(data);
+  std::unique_ptr<RooDataHist> dh_owner;
+  if (!dh) {
+    dh_owner = std::make_unique<RooDataHist>("__chi2_dh","__chi2_dh", RooArgSet(*mass), *data);
+    dh = dh_owner.get();
+  }
+
+  // Make an extended pdf for chi2 calculation (so "NumEvent" normalization is meaningful)
+  RooAbsPdf* pdf_ext = nullptr;
+  std::unique_ptr<RooExtendPdf> owned_ext;
+  std::unique_ptr<RooRealVar> owned_norm; // keep norm alive
+
+  if (pdf_in->InheritsFrom("RooExtendPdf")) {
+    pdf_ext = pdf_in;
+  } else {
+    // Use expectedEvents if available; otherwise derive a norm from the integral in the range
+    double norm_val = pdf_in->expectedEvents(RooArgSet(*mass));
+    if (!(norm_val > 0 && std::isfinite(norm_val))) {
+      auto frac = std::unique_ptr<RooAbsReal>(
+        pdf_in->createIntegral(RooArgSet(*mass),
+                               RooFit::NormSet(RooArgSet(*mass)),
+                               RooFit::Range(rangeList))
+      );
+      const double n_in_range = dh->sumEntries(nullptr, rangeList);
+      const double f_in_range = frac ? frac->getVal() : 1.0;
+      norm_val = (f_in_range > 0) ? (n_in_range / f_in_range) : n_in_range;
     }
-    RooAbsPdf* pdf_ext = nullptr;
-    std::unique_ptr<RooExtendPdf> owned_ext;
-    if (pdf_in->InheritsFrom("RooExtendPdf")) {
-        pdf_ext = pdf_in;
-    } else {
-        double norm_val = pdf_in->expectedEvents(RooArgSet(*mass));
-        if (norm_val <= 0) {
-            auto frac_pdf = std::unique_ptr<RooAbsReal>(
-                pdf_in->createIntegral(RooArgSet(*mass), RooFit::NormSet(RooArgSet(*mass)),
-                                       RooFit::Range(rangeList))
-            );
-            double n_sb = dh->sumEntries(nullptr, rangeList);
-            double f_sb = frac_pdf ? frac_pdf->getVal() : 1.0;
-            norm_val = (f_sb > 0) ? (n_sb / f_sb) : n_sb;
-        }
-        auto normVar = new RooRealVar("__gof_norm","__gof_norm", norm_val, 0., 1e15);
-        normVar->setConstant(kTRUE);
-        owned_ext.reset(new RooExtendPdf("__gof_ext","__gof_ext", *pdf_in, *normVar));
-        pdf_ext = owned_ext.get();
-    }
-    RooChi2Var chi2var("__chi2","__chi2", *pdf_ext, *dh,
-                       RooFit::Range(rangeList),
-                       RooFit::DataError(RooAbsData::Poisson));
-    double chi2 = chi2var.getVal();
-    auto tmp = std::unique_ptr<RooPlot>(mass->frame());
-    dh->plotOn(tmp.get(), RooFit::CutRange(rangeList));
-    auto* h = dynamic_cast<RooHist*>(tmp->getObject(int(tmp->numItems()-1)));
-    int nbins_used = h ? h->GetN() : 0;
-    std::unique_ptr<RooArgSet> allPars(pdf_ext->getParameters(*dh));
-    RooAbsCollection* floats = allPars->selectByAttrib("Constant", kFALSE);
-    int nfloat = floats ? floats->getSize() : 0;
-    delete floats;
-    int ndof = nbins_used - nfloat;
-    if (ndof < 1) ndof = 1;
-    double chi2red = chi2 / ndof;
-    double pval = TMath::Prob(chi2, ndof);
-    return {chi2, chi2red, ndof, pval};
+    owned_norm = std::make_unique<RooRealVar>("__gof_norm","__gof_norm", norm_val, 0., 1e30);
+    owned_norm->setConstant(kTRUE);
+    owned_ext = std::make_unique<RooExtendPdf>("__gof_ext","__gof_ext", *pdf_in, *owned_norm);
+    pdf_ext = owned_ext.get();
+  }
+
+  RooChi2Var chi2var("__chi2","__chi2", *pdf_ext, *dh,
+                     RooFit::Range(rangeList),
+                     RooFit::DataError(RooAbsData::Poisson));
+
+  const double chi2 = chi2var.getVal();
+
+  // --- bins used: for RooDataHist, numEntries() is the number of histogram bins
+  int nbins_used = dh->numEntries();
+  if (nbins_used <= 0) nbins_used = 1;
+
+  // --- floating params
+  std::unique_ptr<RooArgSet> allPars(pdf_ext->getParameters(*dh));
+  std::unique_ptr<RooAbsCollection> floats(allPars->selectByAttrib("Constant", kFALSE));
+  const int nfloat = floats ? floats->getSize() : 0;
+
+  int ndof = nbins_used - nfloat;
+  if (ndof < 1) ndof = 1;
+
+  const double chi2red = chi2 / ndof;
+  const double pval = TMath::Prob(chi2, ndof);
+
+  return {chi2, chi2red, ndof, pval};
 }
 
-void runFit(RooAbsPdf *pdf, RooAbsData *data, double *NLL, int *stat_t, int MaxTries, double *chi2_out=nullptr, bool blindSignalRegion=false){
+void runFit(RooRealVar* mass, RooAbsPdf *pdf, RooAbsData *data, double *NLL, int *stat_t, int MaxTries, FitQuality *q){
   int ntries=0;
   RooArgSet *params_test = pdf->getParameters((const RooArgSet*)(0));
+  
   data->Print("v");
   params_test->Print("v");
+
   int stat=1;
-  double minnll=10e8;
-  while (stat!=0){
-    if (ntries>=MaxTries) break;
-    RooFitResult *fitTest;
-    if (blindSignalRegion) {
-      std::cout << "[INFO] Fitting in sidebands: " << sidebandRangeList << std::endl;
-      fitTest = pdf->fitTo(*data,RooFit::Save(1),RooFit::Minimizer("Minuit2","minimize"),RooFit::Strategy(0),RooFit::PrintLevel(-1),RooFit::Optimize(1),RooFit::SumW2Error(kFALSE),RooFit::Range(sidebandRangeList.c_str()));
-    } else {
-      std::cout << "[INFO] Fitting with full mass range" << std::endl;
-      fitTest = pdf->fitTo(*data,RooFit::Save(1),RooFit::Minimizer("Minuit2","minimize"),RooFit::Strategy(0),RooFit::PrintLevel(-1),RooFit::Optimize(1),RooFit::SumW2Error(kFALSE));
-    }
-    stat = fitTest->status();
+  double minnll=1e9;;
+
+    while (stat != 0) {
+    if (ntries >= MaxTries) break;
+
+    std::cout << "[INFO] Fitting with full mass range" << std::endl;
+
+    std::unique_ptr<RooFitResult> fitTest(
+      pdf->fitTo(*data,
+                 RooFit::Save(true),
+                 RooFit::Minimizer("Minuit2","minimize"),
+                 RooFit::Strategy(0),
+                 RooFit::PrintLevel(-1),
+                 RooFit::Optimize(true),
+                 RooFit::SumW2Error(kFALSE))
+    );
+
+    stat   = fitTest->status();
     minnll = fitTest->minNll();
-    if (stat!=0) params_test->assignValueOnly(fitTest->randomizePars());
-    ntries++; 
+
+    if (stat != 0) params_test->assignValueOnly(fitTest->randomizePars());
+    ntries++;
   }
+
   *stat_t = stat;
-  *NLL = minnll;
-  
-  // Check for integration failures or invalid NLL values
-  if (!std::isfinite(minnll) || minnll > 1e7) {
+  *NLL    = minnll;
+
+  // --- Protection on fit result:
+  //if (!std::isfinite(minnll) || minnll > 1e7) {
+  if (!std::isfinite(minnll)) {
     std::cout << "[WARNING] Fit resulted in invalid NLL (" << minnll << "), marking as failed" << std::endl;
-    *stat_t = 999; // Custom error code for integration failure
-    *NLL = 1e8;    // Very high NLL to indicate failure
+    *stat_t = 999;
+    *NLL = 1e99;
+    if (q) { *q = FitQuality{}; }
+    return;
   }
+
+  // Fill FitQuality only if requested and fit converged
+  if (q) { *q = FitQuality{}; }
   
-  if (chi2_out && stat == 0 && std::isfinite(minnll)) {
-    double Nvis = -1;
-    RooArgSet *final_params = pdf->getParameters((const RooArgSet*)(0));
-    RooRealVar* bkg_norm = nullptr;
-    TIterator* iter = final_params->createIterator();
-    RooAbsArg* arg;
-    while ((arg = (RooAbsArg*)iter->Next())) {
-      if (TString(arg->GetName()).Contains("bkg_norm")) {
-        bkg_norm = (RooRealVar*)arg;
-      }
-    }
-    delete iter;
-    if (bkg_norm) {
-      double normVal = bkg_norm->getVal();
-      Nvis = normVal;
-      std::cout << "[INFO] Using scaled PDF integral for Nvis: " << Nvis << " events (plot range)" << std::endl;
-    } else {
-      if (blindSignalRegion) {
-        Nvis = data->sumEntries("1", sidebandRangeList.c_str());
-        std::cout << "[INFO] Blinded fit: Nvis = " << Nvis << " events in sidebands" << std::endl;
-      } else {
-        Nvis = data->sumEntries();
-        std::cout << "[INFO] Unblinded fit: Nvis = " << Nvis << " events total" << std::endl;
-      }
-    }
-    RooRealVar* mass = (RooRealVar*)data->get()->first();
-    RooPlot* tempPlot = mass->frame();
-    data->plotOn(tempPlot, Name("data"),Range(sidebandRangeList.c_str()));
-    bool isAddPdf = pdf->InheritsFrom("RooAddPdf");
-    cout << "[DEBUG] PDF type: " << pdf->ClassName() << ", isAddPdf: " << isAddPdf << endl;
-    cout << "[DEBUG] Data entries: " << data->sumEntries() << endl;
-    pdf->plotOn(tempPlot, Name("pdf"),Range(sidebandRangeList.c_str()));
-    cout << "[DEBUG] Using natural normalization for chi2 calculation" << endl;
-    int np = pdf->getParameters(*data)->getSize();
-    double chi2_reduced = tempPlot->chiSquare("pdf", "data", np);
+  if (q && stat == 0) {
+    mass->setRange("fullRange", mass->getMin(), mass->getMax());
+    auto r = computeChi2ReducedExtended(mass, pdf, data, "fullRange");
     
-    // Calculate actual number of bins used for chi2
-    RooHist* hdata = (RooHist*)tempPlot->findObject("data");
-    int nbins_used = hdata ? hdata->GetN() : nBinsForFit;
-    int ndof = nbins_used - np;
-    double chi2_total = chi2_reduced * ndof;
-    
-    cout << "[DEBUG] Chi2 calculation: nbins=" << nbins_used << ", np=" << np << ", ndof=" << ndof << endl;
-    cout << "[DEBUG] chi2_reduced=" << chi2_reduced << ", chi2_total=" << chi2_total << endl;
-    
-    *chi2_out = chi2_reduced;  // Return chi2/ndof for compatibility
-    delete tempPlot;
+    q->chi2red = r.chi2red;
+    q->ndof    = r.ndof;
+    //q->nfloat  = r.nfloat;
+    //q->nbins   = r.nbins;
   }
-  if (stat == 0) {
-    std::cout << "=== FINAL PARAMETERS AFTER FIT ===" << std::endl;
-    RooArgSet *final_params = pdf->getParameters((const RooArgSet*)(0));
-    final_params->Print("v");
-    RooRealVar* z_norm = nullptr;
-    RooRealVar* bkg_norm = nullptr;
-    TIterator* iter = final_params->createIterator();
-    RooAbsArg* arg;
-    while ((arg = (RooAbsArg*)iter->Next())) {
-      if (TString(arg->GetName()).Contains("z_norm")) {
-        z_norm = (RooRealVar*)arg;
-      }
-      if (TString(arg->GetName()).Contains("bkg_norm")) {
-        bkg_norm = (RooRealVar*)arg;
-      }
-    }
-    delete iter;
-    if (z_norm) {
-      std::cout << "Z normalization: " << z_norm->getVal() << " +/- " << z_norm->getError() << " events" << std::endl;
-      if (bkg_norm) {
-        std::cout << "Background normalization: " << bkg_norm->getVal() << " +/- " << bkg_norm->getError() << " events" << std::endl;
-        double total = z_norm->getVal() + bkg_norm->getVal();
-        std::cout << "Z fraction: " << (z_norm->getVal()/total)*100.0 << "%" << std::endl;
-      }
-    } else {
-      RooRealVar* z_coeff = nullptr;
-      TIterator* iter2 = final_params->createIterator();
-      RooAbsArg* arg2;
-      while ((arg2 = (RooAbsArg*)iter2->Next())) {
-        if (TString(arg2->GetName()).Contains("z_coeff")) {
-          z_coeff = (RooRealVar*)arg2;
-          break;
-        }
-      }
-      delete iter2;
-      if (z_coeff) {
-        std::cout << "Z coefficient: " << z_coeff->getVal() << " +/- " << z_coeff->getError() << std::endl;
-      }
-    }
-    std::cout << "===================================" << std::endl;
+}        
+
+
+static int bestIndexInPdfMap(RooRealVar* mass,
+                             const std::map<std::string,RooAbsPdf*>& pdfs,
+                             RooAbsData* data)
+{
+  int bestIdx = -1;
+  double bestScore = 1e300;
+  int i = 0;
+  for (auto const& kv : pdfs) {
+    RooAbsPdf* pdf = kv.second;
+    if(!pdf) { ++i; continue; }
+    
+    int st=0; double nll=0;
+    FitQuality fq;
+    runFit(mass, pdf, data, &nll, &st, 7, &fq);
+    if(st!=0 || !std::isfinite(nll)) { ++i; continue; }
+
+    int nfloat = countFloatingParams(pdf, data);
+    double score = 2.0*nll + nfloat;
+
+    if(score < bestScore) { bestScore = score; bestIdx = i; }
+    ++i;
   }
+  return bestIdx;
 }
 
 double getProbabilityFtest(double chi2, int ndof,RooAbsPdf *pdfNull, RooAbsPdf *pdfTest, RooRealVar *mass, RooAbsData *data, std::string name){
   std::cout << "[DEBUG] F-test calculation: chi2=" << chi2 << ", ndof=" << ndof << ", runFtestCheckWithToys=" << runFtestCheckWithToys << std::endl;
   
-  // Per F-test: chi2 grande = miglioramento significativo = prob piccola
+  // For F-test: chi2 large = significant improvement = little proability
   double prob_asym = TMath::Prob(chi2,ndof);
   std::cout << "[DEBUG] TMath::Prob result: " << prob_asym << std::endl;
   
-  // Fix per overflow: se prob è troppo piccola, la trattiamo come 0
+  // Fix for overflow: if probability is too little, it is treated as a 0
   if (prob_asym < 1e-10) {
     std::cout << "[DEBUG] Probability underflow, setting to 1e-10" << std::endl;
     prob_asym = 1e-10;
   }
   
-  // Fix per range: se chi2 è negativo o troppo piccolo, nessun miglioramento
+  // Fix for range: if chi2 is negative or too low, no improvement
   if (chi2 <= 0) {
     std::cout << "[DEBUG] Chi2 <= 0 (" << chi2 << "), no improvement, setting prob=0.9" << std::endl;
-    prob_asym = 0.9;  // Non significativo ma non completamente bad
+    prob_asym = 0.9; 
   }
   
   std::cout << "[DEBUG] Final F-test probability: " << prob_asym << std::endl;
@@ -480,7 +462,7 @@ double getProbabilityFtest(double chi2, int ndof,RooAbsPdf *pdfNull, RooAbsPdf *
   RooArgSet preParams_test;
   params_test->snapshot(preParams_test);
   int ntoys = 100;
-  TCanvas *can = new TCanvas();
+  TCanvas *can = new TCanvas("can","can",1000,1000); //EF
   can->SetLogy();
   TH1F toyhist(Form("toys_fTest_%s.pdf",pdfNull->GetName()),";Chi2;",60,-2,10);
   TH1I toyhistStatN(Form("Status_%s.pdf",pdfNull->GetName()),";FitStatus;",8,-4,4);
@@ -619,7 +601,7 @@ double getGoodnessOfFit(RooRealVar *mass, RooAbsPdf *mpdf, RooAbsData *data, std
     }
     std::cout << "[INFO] complete" << std::endl;
     prob = (double)npass / ntoys;
-    TCanvas *can = new TCanvas();
+    TCanvas *can = new TCanvas("can","can",1000,1000); //EF
     double medianChi2 = toy_chi2[(int)(((float)ntoys)/2)];
     double rms = TMath::Sqrt(medianChi2);
     TH1F toyhist(Form("gofTest_%s.pdf",pdf->GetName()),";Chi2;",50,medianChi2-5*rms,medianChi2+5*rms);
@@ -644,239 +626,102 @@ double getGoodnessOfFit(RooRealVar *mass, RooAbsPdf *mpdf, RooAbsData *data, std
   return prob;
 }
 
-void plotComponents(RooRealVar *mass, RooAbsPdf *pdf, RooAbsPdf *zModel, RooAbsData *data, string name,vector<string> flashggCats_, int status, double *prob, double chi2FromFit=-1, bool fitWasBlinded=false){
-  double chi2_gof;
-  // Use chi2 from fit if available, otherwise use -1 as placeholder (will cause error)
-  if (chi2FromFit < 0) {
-    std::cout << "[ERROR] plotComponents called without valid chi2FromFit!" << std::endl;
-  }
-  *prob = getGoodnessOfFit(mass,pdf,data,name,chi2FromFit,&chi2_gof);
+void plot(RooRealVar *mass, RooAbsPdf *pdf, RooAbsData *data, string name, vector<string> flashggCats_,
+	  int status, double *prob, const FitQuality &fq, bool showPulls=false,RooWorkspace* dataWS = nullptr){
+
+  double chi2tot = fq.chi2red * fq.ndof;
+  std::cout << "[DEBUG] chi2red=" << fq.chi2red
+	    << " ndof=" << fq.ndof
+	    << " chi2tot=" << chi2tot
+	    << " p=" << TMath::Prob(chi2tot, fq.ndof)
+	    << std::endl;
+
+  double pval = (status==0 && fq.chi2red>0 && fq.ndof>0)
+    ? TMath::Prob(fq.chi2red * fq.ndof, fq.ndof)
+    : -1.0;
+
+  if (prob) *prob = pval;
+  
   RooPlot *plot = mass->frame(mass->getMin(), mass->getMax());
-  if (fitWasBlinded) {
-    data->plotOn(plot, MarkerStyle(20), MarkerSize(0.8), CutRange(sidebandRangeList.c_str()));
-  } else {
-    data->plotOn(plot, MarkerStyle(20), MarkerSize(0.8));
-  }
-  double Nvis = -1;
-  RooArgSet *final_params = pdf->getParameters((const RooArgSet*)(0));
-  RooRealVar* bkg_norm = nullptr;
-  TIterator* iter = final_params->createIterator();
-  RooAbsArg* arg;
-  while ((arg = (RooAbsArg*)iter->Next())) {
-    if (TString(arg->GetName()).Contains("bkg_norm")) {
-      bkg_norm = (RooRealVar*)arg;
-    }
-  }
-  delete iter;
-  if (bkg_norm) {
-    double fitIntegral = pdf->createIntegral(*mass, NormSet(*mass), Range(sidebandRangeList.c_str()))->getVal();
-    double normVal = bkg_norm->getVal();
-    Nvis = normVal * (fitIntegral );
-    std::cout << "[INFO] Using scaled PDF integral for Nvis: " << Nvis << " events (plot range)" << std::endl;
-  } else {
-    if (fitWasBlinded) {
-      Nvis = data->sumEntries("1", sidebandRangeList.c_str());
-      std::cout << "[INFO] Blinded fit: Nvis = " << Nvis << " events in sidebands" << std::endl;
-    } else {
-      Nvis = data->sumEntries();
-      std::cout << "[INFO] Unblinded fit: Nvis = " << Nvis << " events total" << std::endl;
-    }
-  }
-  std::cout << "[INFO] Plotting function over full mass range with natural normalization" << std::endl;
-  pdf->plotOn(plot,LineColor(kRed),LineWidth(2),Name("total"),Range(mass->getMin(),mass->getMax()),NormRange(sidebandRangeList.c_str()),
-                     Normalization(Nvis, RooAbsReal::NumEvent));
-  if (pdf->InheritsFrom("RooAddPdf")) {
-    RooAddPdf* addPdf = (RooAddPdf*)pdf;
-    RooArgList comps = addPdf->pdfList();
-    if (comps.getSize() >= 2) {
-      RooAbsPdf* bkgPdf = (RooAbsPdf*)comps.at(0);
-      if (bkgPdf) {
-        pdf->plotOn(plot,Components(*bkgPdf),LineColor(kBlue),LineStyle(kDashed),LineWidth(2),Name("background"),
-                   NormRange(sidebandRangeList.c_str()),
-                   Normalization(Nvis, RooAbsReal::NumEvent),Range(mass->getMin(),mass->getMax()));
-      }
-      if (zModel) {
-        pdf->plotOn(plot,Components(*zModel),LineColor(kGreen+2),LineWidth(2),Name("Z"),
-                   NormRange(sidebandRangeList.c_str()),
-                   Normalization(Nvis, RooAbsReal::NumEvent));
-      }
-    }
-  }
-  double chi2;
-  if (chi2FromFit > 0) {
-    chi2 = chi2FromFit;
-    cout << "[INFO] Using chi2 from fit: " << chi2 << endl;
-  } else {
-    chi2 = chi2_gof;  // Use chi2 from GoF calculation
-    cout << "[INFO] Using chi2/ndof from GoF calculation: " << chi2 << endl;
-  }
-  TCanvas *canv = new TCanvas("canv","canv",800,800);
-  canv->Divide(1,2);
-  canv->cd(1);
-  gPad->SetLeftMargin(0.15);
-  gPad->SetBottomMargin(0.02);
-  gPad->SetPad(0.01,0.3,0.99,0.99);
-  gPad->SetLogy(); // Set log scale for y-axis
-  plot->GetXaxis()->SetTitleSize(0.04);
-  plot->GetXaxis()->SetTitle("");
-  plot->GetXaxis()->SetLabelSize(0);
-  plot->GetYaxis()->SetTitleSize(0.05);
-  plot->GetYaxis()->SetLabelSize(0.04);
-  plot->GetYaxis()->SetTitleOffset(1.2);
-  plot->GetYaxis()->SetTitle("Events");
-  plot->SetTitle("");
-  plot->SetMaximum(plot->GetMaximum()*1.3);
-  double minVal = plot->GetMinimum();
-  // Better minimum for log scale: find a reasonable minimum based on data
-  double dataMinimum = minVal;
-  if (minVal <= 0) dataMinimum = 0.01;
-  else if (minVal < 1e-3) dataMinimum = 1e-3;
-  else dataMinimum = minVal * 0.3;  // 30% below minimum for log scale
-  plot->SetMinimum(dataMinimum);
-  plot->Draw();
-  TLegend *leg = new TLegend(0.65,0.65,0.89,0.89);
-  leg->SetFillStyle(0);
-  leg->SetBorderSize(0);
-  leg->AddEntry("Graph","Data","pe");
-  leg->AddEntry("total","Total fit","l");
-  leg->AddEntry("background","Background","l");
-  leg->AddEntry("Z","Z resonance","l");
-  leg->Draw();
-  TLatex *lat = new TLatex();
-  lat->SetNDC();
-  lat->SetTextFont(42);
-  lat->SetTextSize(0.034);
-  lat->DrawLatex(0.15,0.94,Form("#chi^{2}/ndof = %.3f, Prob = %.2f",chi2,*prob));
-  canv->cd(2);
-  gPad->SetLeftMargin(0.15);
-  gPad->SetBottomMargin(0.15);
-  gPad->SetPad(0.01,0.01,0.99,0.3);
-  gPad->SetGridy();
-  RooPlot *ratioPlot = mass->frame(mass->getMin(), mass->getMax());
-  if (fitWasBlinded) {
-    data->plotOn(ratioPlot,MarkerStyle(20),MarkerSize(0.8),CutRange(sidebandRangeList.c_str()));
-    pdf->plotOn(ratioPlot,LineColor(kRed),LineWidth(2),NormRange(sidebandRangeList.c_str()),
-                     Normalization(Nvis, RooAbsReal::NumEvent));
-  } else {
-    data->plotOn(ratioPlot,MarkerStyle(20),MarkerSize(0.8));
-    pdf->plotOn(ratioPlot,LineColor(kRed),LineWidth(2));
-  }
-  RooHist* hpull = ratioPlot->pullHist("", "", true);
-  RooPlot *pullPlotFinal = mass->frame(mass->getMin(), mass->getMax());
-  pullPlotFinal->addPlotable(hpull,"P");
-  pullPlotFinal->GetYaxis()->SetNdivisions(504);
-  pullPlotFinal->GetYaxis()->SetLabelSize(0.12);
-  pullPlotFinal->GetYaxis()->SetTitleSize(0.12);
-  pullPlotFinal->GetYaxis()->SetTitleOffset(0.5);
-  pullPlotFinal->GetYaxis()->SetTitle("Pull");
-  pullPlotFinal->GetXaxis()->SetTitleSize(0.12);
-  pullPlotFinal->GetXaxis()->SetLabelSize(0.12);
-  pullPlotFinal->GetXaxis()->SetTitle("m_{ll} (GeV)");
-  pullPlotFinal->SetTitle("");
-  pullPlotFinal->SetMaximum(3);
-  pullPlotFinal->SetMinimum(-3);
-  pullPlotFinal->Draw();
-  canv->SaveAs(Form("%s_components.pdf",name.c_str()));
-  canv->SaveAs(Form("%s_components.png",name.c_str()));
-  delete canv;
-  delete lat;
-  delete leg;
-}
 
-void plot(RooRealVar *mass, RooAbsPdf *pdf, RooAbsData *data, string name,vector<string> flashggCats_, int status, double *prob, double chi2FromFit=-1, bool fitWasBlinded=false, bool showPulls=false,RooWorkspace* dataWS = nullptr){
-  double chi2_gof;
-  // Use chi2 from fit if available
-  if (chi2FromFit < 0) {
-    std::cout << "[ERROR] plot called without valid chi2FromFit!" << std::endl;
-  }
-  *prob = getGoodnessOfFit(mass,pdf,data,name,chi2FromFit,&chi2_gof);
-  RooPlot *plot = mass->frame(mass->getMin(), mass->getMax());
-  if (fitWasBlinded) {
-    data->plotOn(plot, MarkerStyle(20), MarkerSize(0.8), CutRange(sidebandRangeList.c_str()));
-  } else {
-    data->plotOn(plot, MarkerStyle(20), MarkerSize(0.8));
-  }
-  double Nvis = -1;
-  // Crea una variabile di yield
-  RooRealVar N_pdf("N_pdf", "N_pdf", data->sumEntries(), 10, 1000000);
-
-  // Wrappa pdf in RooExtendPdf
-  RooExtendPdf pdf_extended("pdf_extended", "pdf extended", *pdf, N_pdf);
-
-  // Fitta sui dati CR (o sul range di fitting che vuoi)
-  pdf_extended.fitTo(*data);
-
-  // Extract normalization factor (after fit)
-  double Nsr_norm = N_pdf.getVal();
-  std::cout << "Nsr_norm (fittato): " << Nsr_norm << " sum entries "<<  data->sumEntries() <<  std::endl;
-
-  std::cout << "[INFO] Plotting function over full mass range" << std::endl;
-  if (fitWasBlinded) {
-    // For blinded fits, normalize only in sidebands
-    pdf->plotOn(plot,LineColor(kCyan),LineWidth(2),Name("total"),Range(mass->getMin(), mass->getMax()),
-                       NormRange(sidebandRangeList.c_str()),
-                       Normalization(N_pdf.getVal(), RooAbsReal::NumEvent));
-  } else {
-    // For unblinded fits, normalize over full range
-    pdf->plotOn(plot,LineColor(kCyan),LineWidth(2),Name("total"),Range(mass->getMin(), mass->getMax()),
-                       Normalization(N_pdf.getVal(), RooAbsReal::NumEvent));
-  }
-  double chi2;
-  if (chi2FromFit > 0) {
-    chi2 = chi2FromFit;
-    cout << "[INFO] Using chi2 from fit: " << chi2 << endl;
-  } else {
-    chi2 = chi2_gof;  // Use chi2 from GoF calculation
-    cout << "[INFO] Using chi2/ndof from GoF calculation: " << chi2 << endl;
-  }
+  data->plotOn(plot, RooFit::Name("data"),
+	       MarkerStyle(20),
+	       MarkerSize(0.8));
+  
+  const double n = data->sumEntries();
+  
+  pdf->plotOn(plot, Name("total"),
+	      LineColor(kCyan), LineWidth(2),
+	      Normalization(n, RooAbsReal::NumEvent));
   
   TCanvas *canv;
-  if (showPulls) {
-    canv = new TCanvas("canv","canv",800,800);
-    canv->Divide(1,2);
-    canv->cd(1);
-    gPad->SetLeftMargin(0.15);
-    gPad->SetBottomMargin(0.02);
-    gPad->SetPad(0.01,0.3,0.99,0.99);
-    gPad->SetLogy(); // Set log scale for y-axis
-    plot->GetXaxis()->SetTitle("");
-    plot->GetXaxis()->SetLabelSize(0);
-    plot->GetYaxis()->SetTitleSize(0.05);
-    plot->GetYaxis()->SetLabelSize(0.04);
-    plot->GetYaxis()->SetTitleOffset(1.2);
-    plot->GetYaxis()->SetTitle("Events");
-  } else {
-    canv = new TCanvas();
-    canv->SetLogy(); // Set log scale for y-axis
-    gPad->SetLeftMargin(0.15);
-    gPad->SetBottomMargin(0.10);
-    plot->GetXaxis()->SetTitleSize(0.04);
-    plot->GetXaxis()->SetTitle("m_{\ell#pi} (GeV)");
-    plot->GetYaxis()->SetTitleSize(0.04);
-    plot->GetYaxis()->SetTitleOffset(1.35);
+
+  if (showPulls) {                                                      
+    canv = new TCanvas("canv","canv",1000,1000);                                                                                                     
+    canv->Divide(1,2);                                                                                                       
+    canv->cd(1);                                                                             
+    gPad->SetLeftMargin(0.15);                                                                                     
+    gPad->SetRightMargin(0.1);                                                                                     
+    gPad->SetBottomMargin(0.02);                                                                                    
+    gPad->SetPad(0.01,0.3,0.99,0.99);                                                                        
+    gPad->SetLogy(); // Set log scale for y-axis                                                                
+    plot->GetXaxis()->SetTitle("");                                                                           
+    plot->GetXaxis()->SetLabelSize(0);                                                                          
+    plot->GetYaxis()->SetTitleSize(0.05);                                                                     
+    plot->GetYaxis()->SetLabelSize(0.04);                                                             
+    plot->GetYaxis()->SetTitleOffset(1.2);                                                         
+    plot->GetYaxis()->SetTitle("Events");                                                               
+  } else {                                                                                    
+    canv = new TCanvas("canv","canv",1000,1000);                                                                                                     
+    canv->SetLogy(); // Set log scale for y-axis                                                   
+    gPad->SetLeftMargin(0.15);                                                                            
+    gPad->SetRightMargin(0.1);                                                                                     
+    gPad->SetBottomMargin(0.10);                                                                  
+    plot->GetXaxis()->SetTitleSize(0.04);                                                     
+    plot->GetXaxis()->SetTitle("m_{jj} [GeV]");                                              
+    plot->GetYaxis()->SetTitleSize(0.04);                  
+    plot->GetYaxis()->SetTitleOffset(1.35);                 
   }
-  
+    
   plot->SetTitle("");
   plot->SetMaximum(plot->GetMaximum()*1.4);
   double minVal = plot->GetMinimum();
+
   // Better minimum for log scale: find a reasonable minimum based on data
   double dataMinimum = minVal;
   if (minVal <= 0) dataMinimum = 0.01;
   else if (minVal < 1e-3) dataMinimum = 1e-3;
   else dataMinimum = minVal * 0.3;  // 30% below minimum for log scale
   plot->SetMinimum(dataMinimum);
+
   plot->Draw();
   
   if (!showPulls) {
     pdf->paramOn(plot,RooFit::Layout(0.34,0.85,0.89),RooFit::Format("NEA",AutoPrecision(1)));
     plot->getAttText()->SetTextSize(0.025);
   }
-  
+
   TLatex *lat = new TLatex();
   lat->SetNDC();
   lat->SetTextFont(42);
   lat->SetTextSize(0.034);
-  lat->DrawLatex(0.15,0.94,Form("#chi^{2}/ndof = %.3f, Prob = %.2f, Fit Status = %d ",chi2,*prob,status));
+
+  double p = (status==0 && fq.ndof>0) ? TMath::Prob(chi2tot, fq.ndof) : 1.0;
+  double logp = -std::log10(std::max(p, std::numeric_limits<double>::min()));
+  
+  lat->DrawLatex(0.15,0.94,
+		 Form("#chi^{2}/ndof = %.3f, -log_{10}(p)=%.1f, status=%d",
+		      fq.chi2red, logp, status));
+  
+  //double logp = (pval>0) ? -std::log10(pval) : 999.;
+  //lat->DrawLatex(0.15,0.94,
+  //		 Form("#chi^{2}/ndof = %.3f, -log_{10}(p)=%.1f, Fit Status=%d",
+  //		      fq.chi2red, logp, status));  
+  //lat->DrawLatex(0.15,0.94,
+  //		 Form("#chi^{2}/ndof = %.3f, Prob = %.2f, Fit Status = %d",
+  //		      fq.chi2red,
+  //		      pval,
+  //		      status));   
   
   if (!showPulls) {
     TLatex *lab = new TLatex();
@@ -898,227 +743,61 @@ void plot(RooRealVar *mass, RooAbsPdf *pdf, RooAbsData *data, string name,vector
   if (showPulls) {
     canv->cd(2);
     gPad->SetLeftMargin(0.15);
-    gPad->SetBottomMargin(0.15);
+    gPad->SetRightMargin(0.1);                                                                                     
+    gPad->SetBottomMargin(0.4);
     gPad->SetPad(0.01,0.01,0.99,0.3);
     gPad->SetGridy();
-    RooPlot *ratioPlot = mass->frame(mass->getMin(), mass->getMax());
-    if (fitWasBlinded) {
-      data->plotOn(ratioPlot,MarkerStyle(20),MarkerSize(0.8),CutRange(sidebandRangeList.c_str()));
-      pdf->plotOn(ratioPlot,LineColor(kCyan),LineWidth(2),NormRange(sidebandRangeList.c_str()),
-                       Normalization(N_pdf.getVal(), RooAbsReal::NumEvent));
-    } else {
-      data->plotOn(ratioPlot,MarkerStyle(20),MarkerSize(0.8));
-      pdf->plotOn(ratioPlot,LineColor(kCyan),LineWidth(2));
-    }
-    RooHist* hpull = ratioPlot->pullHist("", "", true);
-    RooPlot *pullPlotFinal = mass->frame(mass->getMin(), mass->getMax());
-    pullPlotFinal->addPlotable(hpull,"P");
-    pullPlotFinal->GetYaxis()->SetNdivisions(504);
-    pullPlotFinal->GetYaxis()->SetLabelSize(0.12);
-    pullPlotFinal->GetYaxis()->SetTitleSize(0.12);
-    pullPlotFinal->GetYaxis()->SetTitleOffset(0.5);
-    pullPlotFinal->GetYaxis()->SetTitle("Pull");
-    pullPlotFinal->GetXaxis()->SetTitleSize(0.12);
-    pullPlotFinal->GetXaxis()->SetLabelSize(0.12);
-    pullPlotFinal->GetXaxis()->SetTitle("m_{\ell#pi} (GeV)");
-    pullPlotFinal->SetTitle("");
-    pullPlotFinal->SetMaximum(3);
-    pullPlotFinal->SetMinimum(-3);
-    pullPlotFinal->Draw();
+
+    // Build pulls using objects already on the TOP plot:
+    RooHist* hpull = plot->pullHist("data", "total", true);
+    RooPlot* pullFrame = mass->frame(mass->getMin(), mass->getMax());
+    pullFrame->addPlotable(hpull, "P");
+    
+    pullFrame->SetTitle("");
+    pullFrame->GetYaxis()->SetTitle("Pull");
+    pullFrame->GetYaxis()->SetNdivisions(504);
+    pullFrame->GetYaxis()->SetTitleSize(0.12);
+    pullFrame->GetYaxis()->SetLabelSize(0.10);
+    pullFrame->GetYaxis()->SetTitleOffset(0.45);
+    
+    pullFrame->GetXaxis()->SetTitle("m_{jj} [GeV]");
+    pullFrame->GetXaxis()->SetTitleSize(0.14);
+    pullFrame->GetXaxis()->SetLabelSize(0.12);
+    pullFrame->GetXaxis()->SetTitleOffset(1.05);
+    
+    pullFrame->SetMinimum(-3);
+    pullFrame->SetMaximum( 3);
+    
+    pullFrame->Draw();
   }
-  
+
   canv->SaveAs(Form("%s.pdf",name.c_str()));
   canv->SaveAs(Form("%s.png",name.c_str()));
   delete canv;
   delete lat;
-  // --- New plot CR/SR with prediction (RooPlot version) ---
-  if (dataWS) {
-    RooDataHist* data_sr = dynamic_cast<RooDataHist*>(dataWS->data("data_sr_m300"));
-    RooDataHist* data_cr = dynamic_cast<RooDataHist*>(dataWS->data("data_cr_m300"));
-   if (data_sr && data_cr) {
-
-      // 0) Recupero TF(m) dal ws
-     // RooAbsReal* TF = d; // <-- CAMBIA "TF" col nome reale
-    //  if (!TF) { std::cerr << "[ERR] TF non trovata nel workspace\n"; return; }
-
-      // 1) Costruisco RooHistPdf del CR
-      mass->setRange("PLOTRANGE", 100, 1000);
-      RooHistPdf pdf_cr_hist("pdf_cr_hist","CR hist-pdf",RooArgSet(*mass),*data_cr,2);
-      pdf_cr_hist.setNormRange("PLOTRANGE");  
-      // check: l’integrale deve essere ≈ 1 sul range che userai per il plot
-      std::unique_ptr<RooAbsReal> I_den(
-      pdf_cr_hist.createIntegral(
-        RooArgSet(*mass),
-        RooFit::NormSet(RooArgSet(*mass)),
-        RooFit::Range("PLOTRANGE")
-       )
-      );
-      std::cout << "Int[pCR|PLOTRANGE] = " << pdf_cr_hist.getVal() << std::endl;  // ~1
-      // 2) Predizione continua: SR_pred = CR_hist * TF (rinormalizzata automaticamente)
-//      RooEffProd pdf_sr_pred("pdf_sr_pred","SR pred = CR*TF", pdf_cr_hist, *pdf);
-  //    #include "RooProduct.h"
-
-      RooProduct pdf_sr_pred("pdf_sr_pred","SR pred = CR*TF", RooArgList(pdf_cr_hist, pdf_extended));
-      // 3) Normalizzazioni per plottare in numero di eventi
-      const double Ncr = data_cr->sum(false);
-      // Se vuoi shape-puro, normalizza SR_pred a N(data SR); altrimenti usa l’atteso CR×<TF>
-      // Stima semplice di <TF> pesata dal CR (subbinning): evita il "center-of-bin"
-      //const RooAbsBinning& binning = mass->getBinning();
-      //const int nb = binning.numBins();
-      //prendi nb da istogramma cr
-      TH1* h = data_cr->createHistogram("h", *mass);
-      int nb = data_cr->numEntries();
-      double lo = h->GetXaxis()->GetXmin();
-      double hi = h->GetXaxis()->GetXmax();
-      std::cout << "nbin " << nb << " xmin " << lo << " xmax " << hi <<std::endl; 
-      // ora h->GetBinLowEdge(i), h->GetBinUpEdge(i) ti danno i bordi
-      delete h;
-      double Nsr_pred_int = 0.0;
-      for (int i=0;i<nb;++i){
-        data_cr->get(i);
-        const double n_i = data_cr->weight(i);
-        // media TF nel bin con subcampionamento
-        const int sub = 100;
-        double acc = 0.0;
-        for (int j=0;j<sub;++j){
-          const double x = lo + (j+0.5)*(hi-lo)/sub;
-          mass->setVal(x);
-          //std::cout << pdf->getVal(RooArgSet(*mass)) << " " << n_i << std::endl; 
-          acc += pdf->getVal(RooArgSet(*mass));
-        }
-        const double alpha_i = acc/sub;
-        Nsr_pred_int += n_i * alpha_i*(hi-lo)/nb;
-     //   std::cout << i << "cumulative pred " << Nsr_pred_int << " counts cr " << n_i << " mean tF value " << alpha_i << std::endl; 
-      }
-      const double Nsr_obs = data_sr->sum(false);
-      // Scegli la normalizzazione (commenta quella che non vuoi):
-      // a) confronto shape-puro con i dati SR
-      //double Nsr_norm = (Nsr_obs>0 ? Nsr_obs : Nsr_pred_int);
-      // b) confronto "atteso" (CR×<TF>)
-      mass->setRange("SR",lo,hi);  // oppure il range di SR che vuoi
-      std::unique_ptr<RooAbsReal> I_sr( pdf_sr_pred.createIntegral(RooArgSet(*mass), Range("SR")) );
-      double yield_pred_sr = N_pdf.getVal();  // Ncr è il totale di CR
-      //std::unique_ptr<RooAbsReal> I_numG( pdf_sr_pred.createIntegral(RooArgSet(*mass)) );
-      //std::unique_ptr<RooAbsReal> I_denG( pdf_cr_hist.createIntegral(RooArgSet(*mass)) );
-      //double kappa = I_numG->getVal();//
-      std::unique_ptr<RooAbsReal> I_pdf( pdf->createIntegral(RooArgSet(*mass)) );
-      std::cout << "Integrale di pdf: " << I_pdf->getVal() << std::endl;
-
-      std::unique_ptr<RooAbsReal> I_cr( pdf_cr_hist.createIntegral(RooArgSet(*mass)) );
-      std::cout << "Integrale di pdf_cr_hist: " << I_cr->getVal() << std::endl;
-
-      std::unique_ptr<RooAbsReal> I_prod( pdf_sr_pred.createIntegral(RooArgSet(*mass), Range("SR")));
-      std::cout << "Integrale di pdf_sr_pred (CR*TF): " << I_prod->getVal() << std::endl;
-      std::cout << "Atteso (I_cr * I_pdf): " << I_cr->getVal() * I_pdf->getVal() << std::endl;
-      std::cout << yield_pred_sr<< "integral of cr*tf" << std::endl;
-      std::cout << Nvis<< " Nvis" << std::endl;
-      //  std::cout << I_denG->getVal() << "integral of cr" << std::endl;
-      //  / I_denG->getVal();  // = ⟨f⟩_CR
-      double Nsr_norm = I_prod->getVal()/10.;
-      std::cout << " NORM FACTOR " << Nsr_norm <<std::endl;
-
-      // 4) Costruisco i RooPlot (uno per lo spettro, uno per i pull)
-      RooPlot* fr = mass->frame();
-      RooPlot* frPull = mass->frame();
-
-      // 5) Dati SR e CR sul frame (marcatori diversi)
-      //    NB: do un nome agli oggetti sul frame per calcolare i pull
-/*      data_sr->plotOn(fr,
-        RooFit::Name("dataSR"),
-        RooFit::MarkerStyle(20), RooFit::MarkerSize(0.8));
-
-      data_cr->plotOn(fr,
-        RooFit::Name("dataCR"),
-        RooFit::MarkerStyle(24), RooFit::MarkerColor(kBlue+1), RooFit::MarkerSize(0.7));
-
-      // 6) Disegno CR RooHistPdf (in eventi)
-      pdf_cr_hist.plotOn(fr,
-        RooFit::Name("curveCR"),
-        RooFit::LineColor(kBlue+1), RooFit::LineStyle(kDotted), RooFit::LineWidth(2),
-        RooFit::Normalization(Ncr, RooAbsReal::NumEvent),
-        RooFit::Range(mass->getMin(), mass->getMax())
-      );
-*/
-      // 7) Disegno SR_pred = CR*TF (in eventi) — è la curva per i pull
-      //    Se sei in modalità "blinded", usa NormRange coerente coi sidebands
-      if (fitWasBlinded) {
-        pdf_sr_pred.plotOn(fr,
-          RooFit::Name("curveSRpred"),
-          RooFit::LineColor(kRed), RooFit::LineStyle(kSolid), RooFit::LineWidth(2),
-          RooFit::Normalization(Nsr_norm, RooAbsReal::NumEvent),
-          RooFit::Range(mass->getMin(), mass->getMax()),
-          RooFit::NormRange(sidebandRangeList.c_str())
-        );
-      } else {
-        pdf_sr_pred.plotOn(fr,
-          RooFit::Name("curveSRpred"),
-          RooFit::LineColor(kRed), RooFit::LineStyle(kSolid), RooFit::LineWidth(2),
-          RooFit::Normalization(Nsr_norm, RooAbsReal::NumEvent),
-          RooFit::Range(mass->getMin(), mass->getMax())
-        );
-      }
-
-      // 8) Legend
-      TLegend* leg_crsr = new TLegend(0.58,0.68,0.90,0.90);
-      leg_crsr->SetFillColor(0);
-      leg_crsr->SetLineColor(0);
-      leg_crsr->AddEntry(fr->findObject("dataSR"),    "Data SR","lep");
-      leg_crsr->AddEntry(fr->findObject("dataCR"),    "Data CR","lep");
-      leg_crsr->AddEntry(fr->findObject("curveCR"),   "CR RooHistPdf","l");
-      leg_crsr->AddEntry(fr->findObject("curveSRpred"),"Pred SR = CR#timesTF","l");
-
-      // 9) Pull = (dataSR - curveSRpred) / sigma_data  (dal RooPlot)
-      //    Nota: calcola i pull rispetto alla curva "curveSRpred" e ai punti "dataSR"
-/*      RooHist* hPull = fr->pullHist("dataSR","curveSRpred", true); // "true" usa gli errori asimmetrici dei punti
-      frPull->addPlotable(hPull,"P");
-      TLine *line0 = new TLine(mass->getMin(), 0, mass->getMax(), 0);
-      line0->SetLineColor(kGray+2);
-      line0->SetLineStyle(2); // tratteggiata, opzionale
-      line0->Draw("SAME");
-      frPull->SetTitle("");
-      frPull->SetMinimum(-4.0);
-      frPull->SetMaximum( 4.0);
-      frPull->GetYaxis()->SetTitle("Pull");
-      frPull->GetXaxis()->SetTitle(mass->GetTitle());
-*/
-      // 10) Canvas con doppio pad (spettro sopra, pull sotto)
-      TCanvas* c = new TCanvas("c_crsr_rooplot","CR/SR check (RooPlot)",900,900);
-      c->Divide(1,2);
-      c->cd(1);
-      gPad->SetPad(0,0.28,1,1);
-      gPad->SetBottomMargin(0.03);
-      fr->SetTitle(Form("CR vs SR prediction — %s", name.c_str()));
-      // scala log opzionale
-      // gPad->SetLogy();
-      // limiti migliori in basso per log
-      // if (gPad->GetLogy()) fr->SetMinimum(std::max(1e-3, fr->GetMinimum()*0.3));
-      fr->Draw();
-      leg_crsr->Draw();
-
-      c->cd(2);
-      gPad->SetPad(0,0,1,0.28);
-      gPad->SetTopMargin(0.06);
-      gPad->SetBottomMargin(0.35);
-      frPull->Draw();
-
-      c->SaveAs(Form("%s_crsr_rooplot.pdf",name.c_str()));
-      c->SaveAs(Form("%s_crsr_rooplot.png",name.c_str()));
-
-      delete leg_crsr;
-      delete c;
-      delete fr;
-      delete frPull;
-    }
-  }
 }
 
-void plot(RooRealVar *mass, RooMultiPdf *pdfs, RooCategory *catIndex, RooAbsData *data, string name, vector<string> flashggCats_, int cat, int bestFitPdf=-1, bool fitWasBlinded=false){
-  int color[7] = {kCyan+1,kGreen+2,kAzure+2,kTeal+1,kSpring+2,kCyan+3,kGreen+1};
+void plot(RooRealVar *mass, RooMultiPdf *pdfs, RooCategory *catIndex, RooAbsData *data, string name, vector<string> flashggCats_, int cat, int bestFitPdf=-1){
+  //int color[7] = {kCyan+1,kGreen+2,kAzure+2,kTeal+1,kSpring+2,kCyan+3,kGreen+1};
+  int color[10] = {
+    kCyan+1,
+    kPink+7,
+    kAzure+6,
+    kMagenta+1,
+    kOrange+7,
+    kBlue+1,
+    kGreen+2,
+    kRed+1,
+    kViolet+1,
+    kBlack
+  };
+
   TLegend *leg = new TLegend(0.6,0.65,0.95,0.90);
   leg->SetFillColor(0);
   leg->SetLineColor(1);
+
   RooPlot *plot = mass->frame();
-  data->plotOn(plot,MarkerStyle(20),MarkerSize(0.8),CutRange(sidebandRangeList.c_str()));
+  data->plotOn(plot,MarkerStyle(20),MarkerSize(0.8));
   TCanvas *canv = new TCanvas();
   canv->SetLogy(); // Set log scale for y-axis
   int currentIndex = catIndex->getIndex();
@@ -1128,84 +807,37 @@ void plot(RooRealVar *mass, RooMultiPdf *pdfs, RooCategory *catIndex, RooAbsData
   RooAbsPdf *pdf;
   RooCurve *nomBkgCurve;
   double Nvis;
-  if (fitWasBlinded) {
-    Nvis = data->sumEntries("1", sidebandRangeList.c_str());
-    std::cout << "[INFO] Blinded fit: Nvis = " << Nvis << " events in sidebands" << std::endl;
-  } else {
-    Nvis = data->sumEntries();
-    std::cout << "[INFO] Unblinded fit: Nvis = " << Nvis << " events total" << std::endl;
-  }
-  int bestcol= -1;
+  Nvis = data->sumEntries();
+  std::cout << "[INFO] Unblinded fit: Nvis = " << Nvis << " events total" << std::endl;
+
   for (int icat=0;icat<catIndex->numTypes();icat++){
     int col;
     if (icat<=6) col=color[icat];
     else {col=kBlack; style++;}
     catIndex->setIndex(icat);
-    pdfs->getCurrentPdf()->fitTo(*data,RooFit::Minos(0),RooFit::Minimizer("Minuit2","minimize"),RooFit::Strategy(0),RooFit::PrintLevel(-1),RooFit::Optimize(1));  
-    if (fitWasBlinded) pdfs->getCurrentPdf()->plotOn(plot,LineColor(kRed),LineWidth(2),/*NormRange(sidebandRangeList.c_str()),*/ Range(100,mass->getMax()),
-                     Normalization(Nvis, RooAbsReal::NumEvent));
-    else pdfs->getCurrentPdf()->plotOn(plot,LineColor(col),LineStyle(style));
+    //pdfs->getCurrentPdf()->fitTo(*data,RooFit::Minos(0),RooFit::Minimizer("Minuit2","minimize"),RooFit::Strategy(0),RooFit::PrintLevel(-1),RooFit::Optimize(1));  
+
+    pdfs->getCurrentPdf()->plotOn(plot,LineColor(col),LineStyle(style));
     TObject *pdfLeg = plot->getObject(int(plot->numItems()-1));
     std::string ext = "";
+
     if (bestFitPdf==icat) {
       ext=" (Best Fit Pdf) ";
       pdf= pdfs->getCurrentPdf();
       nomBkgCurve = (RooCurve*)plot->getObject(plot->numItems()-1);
-      bestcol = col;
     }
+    
     string pdfName = pdfs->getCurrentPdf()->GetName();
     std:: cout << "PDF Name: " << pdfName << std::endl; 
     
-    // Debug: Print puntion name 
     std::cout << "[DEBUG] Full PDF name: " << pdfName << std::endl;
     
     // Simplified logic to extract the name of the MultiPdf
-    std::string legendName = Form("PDF_%d", icat); // fallback
-    
-    // Looking for common patterns in PDF names
-    if (pdfName.find("bernstein") != std::string::npos || pdfName.find("Bernstein") != std::string::npos) {
-      // Look for a number after "bernstein" or "Bernstein"
-      std::regex bernstein_regex(".*[Bb]ernstein([0-9]+).*");
-      std::smatch match;
-      if (std::regex_match(pdfName, match, bernstein_regex) && match.size() > 1) {
-        legendName = "Bernstein" + match[1].str();
-      } else {
-        legendName = "Bernstein";
-      }
-    } else if (pdfName.find("chebychev") != std::string::npos || pdfName.find("Chebychev") != std::string::npos) {
-      std::regex cheb_regex(".*[Cc]hebychev([0-9]+).*");
-      std::smatch match;
-      if (std::regex_match(pdfName, match, cheb_regex) && match.size() > 1) {
-        legendName = "Cheb" + match[1].str();
-      } else {
-        legendName = "Chebychev";
-      }
-    } else if (pdfName.find("powerlaw") != std::string::npos || pdfName.find("PowerLaw") != std::string::npos) {
-      std::regex power_regex(".*[Pp]ower[Ll]aw([0-9]+).*");
-      std::smatch match;
-      if (std::regex_match(pdfName, match, power_regex) && match.size() > 1) {
-        legendName = "PowerLaw" + match[1].str();
-      } else {
-        legendName = "PowerLaw";
-      }
-    } else if (pdfName.find("laurent") != std::string::npos || pdfName.find("Laurent") != std::string::npos) {
-      std::regex laurent_regex(".*[Ll]aurent([0-9]+).*");
-      std::smatch match;
-      if (std::regex_match(pdfName, match, laurent_regex) && match.size() > 1) {
-        legendName = "Laurent" + match[1].str();
-      } else {
-        legendName = "Laurent";
-      }
-    } else if (pdfName.find("exponential") != std::string::npos || pdfName.find("Exponential") != std::string::npos) {
-      legendName = "Exponential";
-    } else {
-      // If a known pattern is not found, complete name or a fallback is used
-      legendName = Form("Func_%d", icat);
-    }
-    
+    //std::string legendName = Form("PDF_%d", icat); // fallback
+    std::string legendName = prettyPdfLabel(pdfs->getCurrentPdf());
+
     std::cout << "[DEBUG] Legend name: " << legendName << std::endl;
-    
-    leg->AddEntry(pdfLeg,Form("%s%s",legendName.c_str(),ext.c_str()),"L");
+    leg->AddEntry(pdfLeg, (legendName + ext).c_str(), "L");
   }
   plot->SetTitle(Form("Category %d",cat));
   plot->SetMaximum(plot->GetMaximum()*1.4);
@@ -1226,10 +858,25 @@ void plot(RooRealVar *mass, RooMultiPdf *pdfs, RooCategory *catIndex, RooAbsData
   delete canv;
 }
 
-void plot(RooRealVar *mass, map<string,RooAbsPdf*> pdfs, RooAbsData *data, string name, vector<string> flashggCats_, int cat, int bestFitPdf=-1, bool fitWasBlinded=true){
-  int color[7] = {kCyan+1,kGreen+2,kAzure+2,kTeal+1,kSpring+2,kCyan+3,kGreen+1};
-  TCanvas *canv = new TCanvas();
-  canv->SetLogy(); 
+void plot(RooRealVar *mass, map<string,RooAbsPdf*> pdfs, RooAbsData *data, string name, vector<string> flashggCats_, int cat, const std::string& catnameDijet, int bestFitPdf=-1){
+
+  //int color[7] = {kCyan+1,kGreen+2,kAzure+2,kTeal+1,kSpring+2,kCyan+3,kGreen+1};
+  int color[10] = {
+    kCyan+1,
+    kPink+7,
+    kAzure+6,
+    kMagenta+1,
+    kOrange+7,
+    kBlue+1,
+    kGreen+2,
+    kRed+1,
+    kViolet+1,
+    kBlack
+  };
+  TCanvas *canv = new TCanvas("canv","canv",1000,1000); //EF
+  canv->SetLogy();
+  canv->SetRightMargin(0.1);                                                                                     
+
   TLegend *leg = new TLegend(0.15,0.15,0.55,0.35); 
   leg->SetFillColor(0);
   leg->SetFillStyle(0);  
@@ -1240,13 +887,10 @@ void plot(RooRealVar *mass, map<string,RooAbsPdf*> pdfs, RooAbsData *data, strin
   
   RooPlot *plot = mass->frame(mass->getMin(), mass->getMax());
   
-  data->plotOn(plot,MarkerStyle(20),MarkerSize(0.8), CutRange(sidebandRangeList.c_str()));
+  data->plotOn(plot,MarkerStyle(20),MarkerSize(0.8));
   TObject *datLeg = plot->getObject(int(plot->numItems()-1));
-  if(flashggCats_.size() >0){
-    leg->AddEntry(datLeg,Form("Data - %s",flashggCats_[cat].c_str()),"LEP");
-  } else {
-    leg->AddEntry(datLeg,Form("Data - %d",cat),"LEP");
-  }
+  leg->AddEntry(datLeg,Form("Data - %s",catnameDijet.c_str()),"LEP");
+
   int i=0;
   int style=1;
   for (map<string,RooAbsPdf*>::iterator it=pdfs.begin(); it!=pdfs.end(); it++){
@@ -1261,43 +905,6 @@ void plot(RooRealVar *mass, map<string,RooAbsPdf*> pdfs, RooAbsData *data, strin
       continue;
     }
     
-    RooArgSet *final_params = it->second->getParameters((const RooArgSet*)(0));
-    if (!final_params) {
-      std::cerr << "[ERROR] Could not get parameters for " << it->first << std::endl;
-      continue;
-    }
-    
-    RooRealVar* bkg_norm = nullptr;
-    TIterator* iter = final_params->createIterator();
-    RooAbsArg* arg;
-    while ((arg = (RooAbsArg*)iter->Next())) {
-      if (TString(arg->GetName()).Contains("bkg_norm")) {
-        bkg_norm = (RooRealVar*)arg;
-      }
-    }
-    delete iter;
-    delete final_params;
-    
-    if (bkg_norm) {
-      Nvis = bkg_norm->getVal();
-      std::cout << "[INFO] Using bkg_norm for Nvis: " << Nvis << " events" << std::endl;
-    } else {
-      if (fitWasBlinded) {
-        Nvis = data->sumEntries("1", sidebandRangeList.c_str());
-        std::cout << "[INFO] Blinded fit: Nvis = " << Nvis << " events in sidebands" << std::endl;
-      } else {
-        Nvis = data->sumEntries();
-        std::cout << "[INFO] Unblinded fit: Nvis = " << Nvis << " events total" << std::endl;
-      }
-    }
-    std :: cout << " "  << std::endl;
-    std :: cout << " "  << std::endl;
-    std :: cout << " "  << std::endl;
-    std :: cout << " "  << std::endl;
-    std :: cout << "Normalizing events " << Nvis << std::endl;
-    std :: cout << " " << std::endl;
-    std :: cout <<  " "<< std::endl;
-    std :: cout << " " << std::endl;
     it->second->plotOn(plot,LineColor(col),LineWidth(2),Range(mass->getMin(),mass->getMax()));
     TObject *pdfLeg = plot->getObject(int(plot->numItems()-1));
     std::string ext = "";
@@ -1316,26 +923,19 @@ void plot(RooRealVar *mass, map<string,RooAbsPdf*> pdfs, RooAbsData *data, strin
     }
     
     // Create better legend entry with order information
-    std::string legendText;
-    if (!orderStr.empty()) {
-      legendText = familyName + " (order " + orderStr + ")" + ext;
-    } else {
-      legendText = pdfName + ext;
-    }
+    std::string legendName = prettyPdfLabel(it->second);
+    leg->AddEntry(pdfLeg, (legendName + ext).c_str(), "L");
     
-    leg->AddEntry(pdfLeg, legendText.c_str(), "L");
     i++;
   }
+  
   plot->SetMaximum(plot->GetMaximum()*1.4);
   double minVal = plot->GetMinimum();
   // Better minimum for log scale: use 0.1 or minVal/10, whichever is larger
   double logMinimum = std::max(0.1, minVal > 0 ? minVal/10.0 : 0.1);
   plot->SetMinimum(logMinimum);
-  if (cat >= 0 && cat < (int)flashggCats_.size()) {
-    plot->SetTitle(Form(" %s",flashggCats_[cat].c_str()));
-  } else {
-    plot->SetTitle(Form("cat%d",cat));
-  }
+  plot->SetTitle(Form("cat%d",cat));
+
   plot->Draw();
   leg->Draw("same");
   CMS_lumi( canv, 0, 0);
@@ -1360,45 +960,53 @@ void transferMacros(TFile *inFile, TFile *outFile){
   }
 }
 
-int getBestFitFunction(RooMultiPdf *bkg, RooAbsData *data, RooCategory *cat, bool silent=false){
-  double global_minNll = 1E10;
-  int best_index = 0;
-  int number_of_indeces = cat->numTypes();
-  RooArgSet snap,clean;
-  RooArgSet *params = bkg->getParameters((const RooArgSet*)0);
-  params->remove(*cat);
-  params->snapshot(snap);
-  params->snapshot(clean);
-  for (int id=0;id<number_of_indeces;id++){    
-    params->assignValueOnly(clean);
+int getBestFitFunction(RooRealVar* mass, RooMultiPdf *bkg, RooAbsData *data, RooCategory *cat, RooWorkspace* ws, const std::string& snapBase, bool silent=false){
+  double best = 1e100;
+  int bestIdx = 0;
+
+  for (int id=0; id<cat->numTypes(); ++id){
     cat->setIndex(id);
-    double minNll=0;
-    int fitStatus=1;    
-    runFit(bkg->getCurrentPdf(),data,&minNll,&fitStatus,/*max iterations*/7);
-    minNll=minNll+bkg->getCorrection();
-    if (!silent) {
-      std::cout << "[INFO] AFTER FITTING" << std::endl;
-      std::cout << "[INFO] Function was " << bkg->getCurrentPdf()->GetName() <<std::endl;
-      std::cout << "[INFO] Correction Applied is " << bkg->getCorrection() <<std::endl;
-      std::cout << "[INFO] NLL + c = " <<  minNll << std::endl;
-      std::cout << "-----------------------" << std::endl;
+
+    double nll=0; int st=1;
+    FitQuality fq;           
+    runFit(mass, bkg->getCurrentPdf(), data, &nll, &st, 7, &fq);
+
+    double prob = -1;
+    if (st==0 && fq.chi2red>0 && fq.ndof>0) {
+      double chi2tot = fq.chi2red * fq.ndof;
+      prob = TMath::Prob(chi2tot, fq.ndof);
     }
-    if (minNll < global_minNll){
-      global_minNll = minNll;
-      snap.assignValueOnly(*params);
-      best_index=id;
+
+    if (st!=0 || !std::isfinite(nll)) nll = 1e99;
+    nll += bkg->getCorrection();
+
+    // Snapshot ONLY the parameters of the current pdf
+    std::unique_ptr<RooArgSet> pars(bkg->getCurrentPdf()->getParameters(*data));
+    std::string snapName = Form("%s_idx%d", snapBase.c_str(), id);
+    ws->saveSnapshot(snapName.c_str(), *pars, true);
+
+    if (!silent){
+      std::cout << "[INFO] idx="<<id<<" pdf="<<bkg->getCurrentPdf()->GetName()
+                <<" NLL+c="<<nll<<" status="<<st<<"\n";
     }
+
+    if (nll < best){ best = nll; bestIdx = id; }
   }
-  cat->setIndex(best_index);
-  params->assignValueOnly(snap);
-  std::cout << "[INFO] Best fit Function -- " << bkg->getCurrentPdf()->GetName() << " " << cat->getIndex() <<std::endl;
-  std::cout << "[INFO] Best fit parameters " << std::endl;
-  params->Print("V");
-  return best_index;
+
+  cat->setIndex(bestIdx);
+  std::string bestSnap = Form("%s_idx%d", snapBase.c_str(), bestIdx);
+  ws->loadSnapshot(bestSnap.c_str());
+
+  std::cout << "[INFO] Best fit = idx "<<bestIdx<<" pdf="<<bkg->getCurrentPdf()->GetName()
+            <<" NLL+c="<<best<<"\n";
+  return bestIdx;
 }
 
 // Function to create background PDF with optional turn-on function and Z resonance
-RooAbsPdf* createBackgroundWithTurnOn(PdfModelBuilder &pdfsModel, string type, int order, RooRealVar* mass, const char* ext, bool includeTurnOn = true, bool includeZ = false, RooWorkspace* dataWS = nullptr, std::string turnOnType = "Erf") {
+RooAbsPdf* createBackgroundWithTurnOn(PdfModelBuilder &pdfsModel, string type, int order, RooRealVar* mass,
+				      const char* ext, bool includeTurnOn = true,
+				      RooWorkspace* dataWS = nullptr, std::string turnOnType = "Erf") {
+
   RooAbsPdf *basePdf = getPdf(pdfsModel, type, order, ext);
   if (!basePdf) {
     cerr << "[ERROR] Could not create base PDF of type " << type << " order " << order << endl;
@@ -1408,101 +1016,84 @@ RooAbsPdf* createBackgroundWithTurnOn(PdfModelBuilder &pdfsModel, string type, i
     RooArgSet normSet(*mass);
     ((RooAddPdf*)basePdf)->fixCoefNormalization(normSet);
   }
+
   RooAbsPdf *currentPdf = basePdf;
+
   if (includeTurnOn) {
-    RooRealVar *cutoff = new RooRealVar(Form("%s_turnon_cutoff", ext), "Turn-on cutoff", 100, 43,250 );
-    RooRealVar *beta = new RooRealVar(Form("%s_turnon_beta", ext), "Turn-on beta", 5, 0.1, 100);
-    cout << "[INFO] Adding turn-on function for " << type << " order " << order << endl;
+    //RooRealVar *cutoff = new RooRealVar(Form("%s_turnon_cutoff", ext), "Turn-on cutoff", 100, 43,250 );
+    //RooRealVar *beta = new RooRealVar(Form("%s_turnon_beta", ext), "Turn-on beta", 5, 0.1, 100);
+
+    // IMPORTANT: make turn-on params unique per PDF (family+order), otherwise models share them
+    // and the behavior changes when you add/remove other models.
+    TString tag = Form("%s_%s%d", ext, type.c_str(), order);
+
     RooGenericPdf *turnOnPdf = nullptr;
-    if (turnOnType == "Erf") {
-      turnOnPdf = new RooGenericPdf(Form("%s_turnon", ext), "Fermi-Dirac turn-on", 
-                                   "1.0/(1.0 + TMath::Exp((@1-@0)/@2))", 
-                                   RooArgList(*mass, *cutoff, *beta));
-    }
-    else if (turnOnType == "Erf" || type == "PowerLaw" || type == "PowerLawSingle") {
-      turnOnPdf = new RooGenericPdf(Form("%s_turnon", ext), "Error function turn-on", 
-                                   "0.5*(1.0 + TMath::Erf((@0-@1)/@2))", 
-                                   RooArgList(*mass, *cutoff, *beta));
-    }
-    else if (turnOnType == "DExp") {
-      turnOnPdf = new RooGenericPdf(Form("%s_turnon", ext), "Double exponential turn-on", 
-                                   "1.0 - TMath::Exp(-TMath::Exp((@0-@1)/@2))", 
-                                   RooArgList(*mass, *cutoff, *beta));
-    }
-    else {
-      turnOnPdf = new RooGenericPdf(Form("%s_turnon", ext), "Turn-on function", 
-                                   "1.0/(1.0 + TMath::Exp((@1-@0)/@2))", 
-                                   RooArgList(*mass, *cutoff, *beta));
-    }
-    currentPdf = new RooProdPdf(Form("_%s_%s_with_turnon",type.c_str(), ext), 
-                               "Background with turn-on", 
-                               RooArgList(*currentPdf, *turnOnPdf));
-  }
-  if (includeZ && dataWS) {  
-    RooAbsPdf *zModel = dataWS->pdf(gZModelName.c_str());
-    if (zModel) {
-      cout << "[INFO] Adding Z resonance model for " << type << " order " << order << endl;
-      RooArgSet *zParams = zModel->getParameters(RooArgSet(*mass));
-      TIterator *iter = zParams->createIterator();
-      RooRealVar *param;
-      while ((param = (RooRealVar*)iter->Next())) {
-          param->setConstant(kTRUE);
-          cout << "[INFO] Freezing Z parameter: " << param->GetName() << " = " << param->getVal() << " (fixed)" << endl;
-        }
-      delete iter;
-      delete zParams;
-      RooArgSet normSet(*mass);
-      double zIntegral = zModel->createIntegral(normSet)->getVal();
-      cout << "[DEBUG] Z PDF integral over mass range: " << zIntegral << endl;
-      cout << "[INFO] Adding Z resonance using independent normalizations" << endl;
-      RooRealVar *bkg_norm = new RooRealVar(Form("%s_bkg_norm", ext), "Background normalization", 
-                                           1400000, 0., 2000000.);
-      RooRealVar *z_norm = new RooRealVar(Form("%s_z_norm", ext), "Z normalization", 
-                                         16000, 14000, 18000.);
-      cout << "[INFO] Using independent normalizations:" << endl;
-      cout << "  Background norm: " << bkg_norm->getVal() << " events" << endl;
-      cout << "  Z norm: " << z_norm->getVal() << " events" << endl;
-      currentPdf = new RooAddPdf(Form("%s_with_z", ext),
-                                "Background with Z",
-                                RooArgList(*currentPdf, *zModel),
-                                RooArgList(*bkg_norm, *z_norm));
-      cout << "[INFO] Z added with independent normalizations" << endl;
+    /*
+    // VBF (good), RES/PP (might need tuning)
+    // --------------------------------------
+    RooRealVar *cutoff = new RooRealVar(Form("turnon_cutoff_%s", tag.Data()),
+                                        "Turn-on cutoff", 360., 200.0, 600.0); 
+    RooRealVar *beta   = new RooRealVar(Form("turnon_beta_%s", tag.Data()),
+                                       "Turn-on beta",   50.0, 1.0, 300.0); 
+    */
+
+    // BOO
+    // --------------------------------------
+    RooRealVar *cutoff = new RooRealVar(Form("turnon_cutoff_%s", tag.Data()),
+                                        "Turn-on cutoff", 80., 50.0, 450.0); 
+    RooRealVar *beta   = new RooRealVar(Form("turnon_beta_%s", tag.Data()),
+                                       "Turn-on beta",   5.0, 1.0, 200.0); 
+
+    cout << "[INFO] Adding turn-on function for " << type << " order " << order << endl;
+
+    RooFormulaVar *eff = nullptr;
+
+    if (turnOnType == "Fermi") {
+      eff = new RooFormulaVar(Form("%s_turnon_eff", tag.Data()),
+			      "1.0/(1.0+TMath::Exp((@1-@0)/@2))",
+			      RooArgList(*mass, *cutoff, *beta));
+    } else if (turnOnType == "Erf") {
+      auto eff_raw = new RooFormulaVar(
+				       Form("%s_turnon_eff_raw", tag.Data()),
+				       "eff raw",
+				       "0.5*(1.0+TMath::Erf((@0-@1)/(TMath::Sqrt(2.)*@2)))",
+				       RooArgList(*mass, *cutoff, *beta)
+				       );
+      
+      // eff = max(eps, min(1-eps, eff_raw))
+      const double eps = 1e-9;
+      eff = new RooFormulaVar(
+			      Form("%s_turnon_eff", tag.Data()),
+			      "eff clamped",
+			      Form("TMath::Min(%.12g, TMath::Max(%.12g, @0))", 1.0 - eps, eps),
+			      RooArgList(*eff_raw)
+			      );
+    } else if (turnOnType == "DExp") {
+      eff = new RooFormulaVar(Form("%s_turnon_eff", tag.Data()),
+			      "1.0 - TMath::Exp(-TMath::Exp((@0-@1)/@2))",
+			      RooArgList(*mass, *cutoff, *beta));
     } else {
-      cout << "[WARNING] Could not find Z model '"<< gZModelName <<"' in workspace" << endl;
+      eff = new RooFormulaVar(Form("%s_turnon_eff", tag.Data()),
+			      "1.0/(1.0+TMath::Exp((@1-@0)/@2))",
+			      RooArgList(*mass, *cutoff, *beta));
     }
+
+    if (!eff) {
+      cerr << "[ERROR] Turn-on efficiency not created (turnOnType=" << turnOnType << ")\n";
+      return nullptr;
+    }
+
+    currentPdf = new RooEffProd(
+				Form("%s_with_turnon", tag.Data()),
+				"Background with turn-on efficiency",
+				*currentPdf,
+				*eff
+				);
   }
+  
   return currentPdf;
 }
 
-void runIterativeFits(RooRealVar* mass, RooAbsData* data, PdfModelBuilder& pdfsModel, RooWorkspace* dataWS, const std::string& ext, int order, const std::vector<std::string>& flashggCats_, int cat, const std::string& outDir, bool iterativeMode, const std::string& turnOnType) {
-    // Nota: questa funzione usa setRange con etichette proprie; il runFit userà sidebandRangeList
-    mass->setRange("fit_low", mass->getMin(), 78);
-    mass->setRange("fit_high", 100, mass->getMax());
-    mass->setRange("blind_low", mass->getMin(), 78);
-    mass->setRange("blind_high", 100, mass->getMax());
-    bool includeZ = false;
-    std::cout << "[ITERATIVE FIT] Primo fit: " << ext << " [ " << mass->getMin()<< ",78] e >140 senza Z" << std::endl;
-    RooAbsPdf* bkgPdf1 = createBackgroundWithTurnOn(pdfsModel, ext, order, mass, ext.c_str(), true, includeZ, dataWS, turnOnType);
-    int fitStatus1 = 0;
-    double chi2FromFit1 = -1;
-    double thisNll1 = 0.;
-    runFit(bkgPdf1, data, &thisNll1, &fitStatus1, 7, &chi2FromFit1, false);
-    plot(mass, bkgPdf1, data, outDir+"/iterativeFit1_"+ext, flashggCats_, fitStatus1, &chi2FromFit1, chi2FromFit1,true,true,dataWS);
-    std::cout << "[ITERATIVE FIT] Primo fit status: " << fitStatus1 << std::endl;
-    mass->setRange("fit_low", mass->getMin(), 100);
-    mass->setRange("fit_high", 100, mass->getMax());
-    mass->setRange("blind_low", mass->getMin(), 100);
-    mass->setRange("blind_high", 100, mass->getMax());
-    includeZ = true;
-    std::cout << "[ITERATIVE FIT] Secondo fit: " << ext << " [mass->getMin(),100] e >140 con Z" << std::endl;
-    RooAbsPdf* bkgPdf2 = createBackgroundWithTurnOn(pdfsModel, ext, order, mass, ext.c_str(), true, includeZ, dataWS, turnOnType);
-    int fitStatus2 = 0;
-    double chi2FromFit2 = -1;
-    double thisNll2 = 0.;
-    runFit(bkgPdf2, data, &thisNll2, &fitStatus2, 7, &chi2FromFit2, false);
-    plot(mass, bkgPdf2, data, outDir+"/iterativeFit2_"+ext, flashggCats_, fitStatus2, &chi2FromFit2, chi2FromFit2,true,true,dataWS);
-    std::cout << "[ITERATIVE FIT] Secondo fit status: " << fitStatus2 << std::endl;
-}
 
 int main(int argc, char* argv[]){
   setTDRStyle();
@@ -1511,6 +1102,7 @@ int main(int argc, char* argv[]){
   lumi_8TeV  = "19.1 fb^{-1}";
   lumi_7TeV  = "4.9 fb^{-1}";
   lumi_sqrtS = "13.6 TeV";
+
   string year_ = "2024";
   string fileName;
   string workspaceFile = "";
@@ -1524,14 +1116,10 @@ int main(int argc, char* argv[]){
   bool verbose=true;
   bool saveMultiPdf=false;
   bool includeTurnOn=false;
-  bool includeZ=false;
-  bool blindSignalRegion=false;
   int rebinFactor=1;
-  int isFlashgg_ =0;
   string flashggCatsStr_;
   vector<string> flashggCats_;
   bool isData_ =0;
-  bool iterativeFit = false;
   std::string turnOnType = "Erf"; // Fermi
 
   po::options_description desc("Allowed options");
@@ -1540,8 +1128,6 @@ int main(int argc, char* argv[]){
     ("infilename,i", po::value<string>(&fileName),                                              "In file name")
     ("workspace,w", po::value<string>(&workspaceFile)->default_value(""), "Workspace file with RooDataHist and Z model")
     ("includeTurnOn", po::value<bool>(&includeTurnOn)->default_value(false),                    "Include turn-on function for low mass threshold")
-    ("includeZ", po::value<bool>(&includeZ)->default_value(false),                             "Include Z resonance model from workspace")
-    ("blindSignalRegion", po::value<bool>(&blindSignalRegion)->default_value(false),           "Blind signal region [100-140] GeV in fit (not just plots)")
     ("ncats,c", po::value<int>(&ncats)->default_value(5),                                       "Number of categories")
     ("singleCat", po::value<int>(&singleCategory)->default_value(0),                           "Run A single Category (default: category 0)")
     ("datfile,d", po::value<string>(&datfile)->default_value("dat/fTest.dat"),                  "Right results to datfile for BiasStudy")
@@ -1550,7 +1136,6 @@ int main(int argc, char* argv[]){
     ("runFtestCheckWithToys",                                                                   "When running the F-test, use toys to calculate pvals (and make plots) ")
     ("is2011",                                                                                  "Run 2011 config")
     ("is2012",                                                                                  "Run 2012 config")
-    ("isFlashgg",  po::value<int>(&isFlashgg_)->default_value(1),                               "Use Flashgg output ")
     ("isData",  po::value<bool>(&isData_)->default_value(0),                                    "Use Data not MC ")
     ("flashggCats,f", po::value<string>(&flashggCatsStr_)->default_value("UntaggedTag_0,UntaggedTag_1,UntaggedTag_2,UntaggedTag_3,UntaggedTag_4,VBFTag_0,VBFTag_1,VBFTag_2,TTHHadronicTag,TTHLeptonicTag,VHHadronicTag,VHTightTag,VHLooseTag,VHEtTag"),                  "Flashgg category names to consider")
     ("year", po::value<string>(&year_)->default_value("2024"),                                  "Dataset year")
@@ -1560,7 +1145,6 @@ int main(int argc, char* argv[]){
     ("nsigma", po::value<int>(&nsigma)->default_value(10),                                       "Sigma multiplier, for size of window")
     ("rebinFactor,r", po::value<int>()->default_value(1),                                       "Rebin factor to reduce number of bins (1=no rebinning)")
     ("verbose,v",                                                                               "Run with more output")
-    ("iterativeFit", po::value<bool>(&iterativeFit)->default_value(false), "Enable iterative fitting: first fit [mass->getMin(),78]+>140 w/o Z, then [mass->getMin(),100]+>140 with Z")
     ("turnOnType", po::value<std::string>(&turnOnType)->default_value("Erf"), "Type of turn-on function: Fermi, Erf, DExp")
     // New options
     ("cat-name", po::value<std::string>()->default_value("PP") , "Category name")
@@ -1568,13 +1152,10 @@ int main(int argc, char* argv[]){
     ("mass-var", po::value<std::string>()->default_value("CMS_dijet_mass"), "RooRealVar name for dijet mass")
     ("data-name", po::value<std::string>()->default_value("") , "Dataset name (single category)")
     ("data-name-pattern", po::value<std::string>()->default_value("h_data_bkg_cat{CAT}"), "Pattern dataset for each catorgy; {CAT} substituted with the index")
-    ("z-model-name", po::value<std::string>()->default_value("model_Z_c2"), "Name of the Z pdf within the workspace")
-    ("blind", po::value<std::string>()->default_value("100-100"), "SR windows to be excluded, es. '100-135,500-600' (accept 'min'/'max')")
-    ("fit-accept", po::value<std::string>()->default_value("") , "(Optional) Ranges accepted for the fit; if empty, it complements --blind")
     ("mass-min", po::value<double>()->default_value(std::numeric_limits<double>::quiet_NaN()), "(Optional) Min value of the mass variable")
     ("mass-max", po::value<double>()->default_value(std::numeric_limits<double>::quiet_NaN()), "(Optional) Max value of the mass variable")
     ("max-ftest-order", po::value<int>()->default_value(5), "Max order for F-test (default: 5)")
-    ("max-envelope-order", po::value<int>()->default_value(10), "Max order for the envelope (default: 10)")
+    ("max-envelope-order", po::value<int>()->default_value(6), "Max order for the envelope (default: 6)")
   ;
 
   po::variables_map vm;
@@ -1610,8 +1191,12 @@ int main(int argc, char* argv[]){
     outputfile = new TFile(outfilename.c_str(),"RECREATE");
     outputws = new RooWorkspace(); outputws->SetName("multipdf");
   }
-  system(Form("mkdir -p %s",outDir.c_str()));
 
+  // Create output directories
+  system(Form("mkdir -p %s", outDir.c_str()));
+  system(Form("mkdir -p %s/FTestFunctions", outDir.c_str()));
+  system(Form("mkdir -p %s/EnvelopeComponents_Pulls", outDir.c_str()));
+ 
   // Command line options
   // ----------------------------------------
   auto catnameDijet = vm["cat-name"].as<std::string>();
@@ -1619,12 +1204,8 @@ int main(int argc, char* argv[]){
   auto massVarName = vm["mass-var"].as<std::string>();
   auto dataName    = vm["data-name"].as<std::string>();
   auto dataPat     = vm["data-name-pattern"].as<std::string>();
-  auto zModelName  = vm["z-model-name"].as<std::string>();
-  auto blindSpec   = vm["blind"].as<std::string>();
-  auto fitAccept   = vm["fit-accept"].as<std::string>();
   double optMassMin = vm["mass-min"].as<double>();
   double optMassMax = vm["mass-max"].as<double>();
-  gZModelName = zModelName;
 
   // Load the main data file (if provided)
   // ----------------------------------------
@@ -1666,21 +1247,33 @@ int main(int argc, char* argv[]){
     inWS = dataWS;
   }
   if (verbose){
-   std::cout << "[INFO]  inWS open " << inWS << std::endl;
-   inWS->Print();
+    std::cout << "------------------------------------------------------" << std::endl;
+    std::cout << "[INFO]  inWS open " << inWS << std::endl;
+    inWS->Print();
   }
   if (saveMultiPdf){
     if (inFile) {
       transferMacros(inFile,outputfile);
     }
     RooRealVar *intL; 
-    RooRealVar *sqrts;
     intL  = intLumi_;
-    sqrts = (RooRealVar*)inWS->var("SqrtS");
-    if (!sqrts){ sqrts = new RooRealVar("SqrtS","SqrtS",13); }
+
+    RooRealVar* sqrts_ws = dataWS->var("sqrt_s_var");
+    if (!sqrts_ws) sqrts_ws = dataWS->var("SqrtS"); // fallback if some WS uses this name
+
+    if (!sqrts_ws) {
+      std::cerr << "[FATAL] No sqrt(s) variable found (expected sqrt_s_var or SqrtS)\n";
+      dataWS->Print();
+      return 1;
+    }
+    
+    std::cout << "------------------------------------------------------" << std::endl;
+    std::cout << "[INFO] sqrt(s) var name = " << sqrts_ws->GetName()
+	      << " val =" << sqrts_ws->getVal() << std::endl; ;
+    std::cout << "------------------------------------------------------" << std::endl;
+    sqrts_ws->setConstant(kTRUE);
+    
     outputws->import(*intL);
-    outputws->import(*sqrts);
-    std::cout << "[INFO] got intL and sqrts " << intL << ", " << sqrts << std::endl;
   }
 
   vector<string> functionClasses;
@@ -1709,47 +1302,33 @@ int main(int argc, char* argv[]){
   std:: cout << "[INFO] Mass range: [" << mass->getMin() << ", " << mass->getMax() << "]" << std::endl;
   if (mass && mass->hasMin() && !std::isnan(optMassMin)) mass->setMin(optMassMin);
   if (mass && mass->hasMax() && !std::isnan(optMassMax)) mass->setMax(optMassMax);
+
   const double mmin = mass->getMin();
   const double mmax = mass->getMax();
-  std::vector<Interval> sr = parse_intervals(blindSpec, mmin, mmax);
-  blindRangeList = define_ranges(mass, sr, "sr");
-  std::vector<Interval> accept = fitAccept.empty() ? complement(sr, mmin, mmax)
-                                                   : parse_intervals(fitAccept, mmin, mmax);
-  sidebandRangeList = define_ranges(mass, accept, "sb");
-  std::cout << "[INFO] SR (escluse): " << (blindRangeList.empty()?"<none>":blindRangeList) << std::endl;
-  std::cout << "[INFO] Sidebands per fit: " << sidebandRangeList << std::endl;
+
   pdfsModel.setObsVar(mass);
-  double upperEnvThreshold = 0.25;   // Maximum probability for F-test (it was 1, lowered to 0.25)
-  double minGofThreshold = 0.10;     // Minimum GoF considered to exclude bad functions (raised from 0.01 to 0.10)
+  double upperEnvThreshold = 0.1;   // Maximum probability for F-test (it was 1, lowered to 0.1)
+  double minGofThreshold = 0.01;     // Minimum GoF considered to exclude bad functions (raised from 0.01 to 0.10)
 
   fprintf(resFile,"Truth Model & d.o.f & $\\Delta NLL_{N+1}$ & $p(\\chi^{2}>\\chi^{2}_{(N\\rightarrow N+1)})$ \\\n");
   fprintf(resFile,"\\hline\n");
 
   std::string ext = is2011 ? "7TeV" : "8TeV";
-  if( isFlashgg_ ){
-    if( year_ == "all" ){ ext = "13p6TeV"; }
-    else{ ext = Form("%s_13p6TeV",year_.c_str()); }
-  }
+  if( year_ == "all" ){ ext = "13p6TeV"; }
+  else{ ext = Form("%s_13p6TeV",year_.c_str()); }
+
   std::cout << "[INFO] Number of categories to process: " << ncats << std::endl;
   for (int cat=0; cat<ncats; cat++){
     map<string,int> choices;
     map<string,std::vector<int> > choices_envelope;
-    map<string,RooAbsPdf*> pdfs;
+    map<string,RooAbsPdf*> pdfs; // Map is filled once per family
     map<string,RooAbsPdf*> allPdfs;
     map<string,int> familyMinOrder; // Tracking minimum order for the family in the envelope
     map<string,double> familyBestAIC; // Tracking best AIC for the family in the envelope
     map<string,RooAbsPdf*> familyBestPdf; // Tracking best PDF for the family in the envelope 
     string catname;
-    if (isFlashgg_){
-      if (cat >= 0 && cat < (int)flashggCats_.size()) {
-        catname = Form("%s",flashggCats_[cat].c_str());
-      } else {
-        std::cerr << "[ERROR] Invalid category index " << cat << " for flashggCats_ (size=" << flashggCats_.size() << ")" << std::endl;
-        catname = Form("cat%d",cat);
-      }
-    } else {
-      catname = Form("cat%d",cat);
-    }
+
+    catname = Form("cat%d",cat);
 
     // Parametric dataset
     // ------------------
@@ -1765,9 +1344,12 @@ int main(int argc, char* argv[]){
       cerr << "[ERROR] Could not find dataset '" << data_name << "' in workspace" << endl;
       continue;
     }
+
     // Get initial binning from data, will be updated if rebinning occurs
     // ------------------------------------------------------------------
-    nBinsForFit = mass->getBinning().numBins();
+    nBinsForFit = data_in->numEntries();          // RooDataHist bins
+    //nBinsForFit = mass->getBinning().numBins();
+    std::cout << "------------------------------------------------------" << std::endl;
     cout << "[INFO] Initial binning from workspace mass variable: " << nBinsForFit << " bins" << endl;
     std::cout << "entries dataset " << data_in->sumEntries() << std::endl;
     cout << "[DEBUG] Original RooDataHist info:" << endl;
@@ -1829,8 +1411,11 @@ int main(int argc, char* argv[]){
     RooArgList storedPdfs("store");
     fprintf(resFile,"\\multicolumn{4}{|c|}{\\textbf{Category %d}} \\\n",cat);
     fprintf(resFile,"\\hline\n");
+
+    int totalEnvelopeKeptThisCat = 0;
     double MinimimNLLSoFar=1e10;
     int simplebestFitPdfIndex = 0;
+    
     for (vector<string>::iterator funcType=functionClasses.begin(); 
         funcType!=functionClasses.end(); funcType++){
       bool currentIncludeTurnOn = includeTurnOn;
@@ -1848,128 +1433,50 @@ int main(int argc, char* argv[]){
       RooAbsPdf *cache_pdf=NULL;
       std::vector<int> pdforders;
       std::cout << "===> F-TEST for Truth determination" << std::endl;
+
       int counter =0;
       std::cout << "[DEBUG] Initial values: prev_chi2_red=" << prev_chi2_red << ", order=" << order << ", gMaxFtestOrder=" << gMaxFtestOrder << std::endl;
-      while (order < gMaxFtestOrder){   // Continue until max order or chi2 stops improving significantly
-        cout << "[DEBUG] Starting test for order " << order << ", prev_chi2_red = " << prev_chi2_red << ", maxOrder = " << gMaxFtestOrder << endl;
-        cout << "==> " << *funcType << " " << order << endl;
-        RooAbsPdf *bkgPdf = createBackgroundWithTurnOn(pdfsModel,*funcType,order,mass,Form("ftest_pdf_%d_%s",(cat+catOffset),ext.c_str()), currentIncludeTurnOn, includeZ, dataWS, turnOnType);
-        if (bkgPdf && bkgPdf->InheritsFrom("RooAddPdf")) {
-          RooArgSet normSet(*mass);
-          ((RooAddPdf*)bkgPdf)->fixCoefNormalization(normSet);
-        }
-        if (!bkgPdf){
-          cout << "[DEBUG] Failed to create PDF for order " << order << ", moving to next order" << endl;
-          order++;
-          if (order > gMaxFtestOrder) {
-            cout << "[WARNING] Reached maximum F-test order limit (" << gMaxFtestOrder << "), stopping" << endl;
-            break;
-          }
-        }
-        else {
-          int fitStatus = 0;
-          double chi2FromFit = -1;
-          if (iterativeFit){
-            runIterativeFits(mass, data, pdfsModel, dataWS, *funcType, order, flashggCats_, singleCategory, outDir, iterativeFit, turnOnType);
-          } else {
-            runFit(bkgPdf,data,&thisNll,&fitStatus,/*max iterations*/7,&chi2FromFit,blindSignalRegion);
-          }
-          if (fitStatus!=0) {
-            std::cout << "[WARNING] Fit failed for " << bkgPdf->GetName() << " with status " << fitStatus << std::endl;
-            if (fitStatus == 999) {
-              std::cout << "[WARNING] Integration failure detected, skipping this function" << std::endl;
-              order++;
-              if (order > gMaxFtestOrder) {
-                cout << "[WARNING] Reached maximum F-test order limit (" << gMaxFtestOrder << "), stopping" << endl;
-                break;
-              }
-              continue; // Skip to next iteration
-            }
-          }
-          // Standard CMS F-test methodology using NLL + 0.5*Nparams
-          double current_nll_corr = thisNll;
-          int nparams = (bkgPdf) ? bkgPdf->getVariables()->getSize() : order;
-          double current_nll_penalty = current_nll_corr + 0.5 * nparams;
-          
-          // Previous NLL for F-test calculation
-          static double prev_nll_corr = 999.0;
-          static int prev_nparams = 0;
-          if (order == 1) {
-            prev_nll_corr = 999.0; // Reset for each family
-            prev_nparams = 0;
-          }
-          
-          std::cout << "[DEBUG] F-test analysis: NLL=" << current_nll_corr << ", nparams=" << nparams 
-                   << ", NLL_penalty=" << current_nll_penalty << ", prev_NLL=" << prev_nll_corr << std::endl;
-          
-          bool significant_improvement = false;
-          double f_test_prob = 1.0;
-          
-          if (order == 1) {
-            // Always test first order
-            significant_improvement = true;
-            f_test_prob = 0.0; // First order automatically passes
-            std::cout << "[INFO] First order: NLL=" << current_nll_corr << ", NLL_penalty=" << current_nll_penalty << std::endl;
-          } else {
-            // Standard F-test: 2*(NLL_prev - NLL_current) ~ chi2 with dof = nparams_current - nparams_prev
-            double f_stat = 2.0 * (prev_nll_corr - current_nll_corr);
-            int dof = nparams - prev_nparams;
-            
-            if (f_stat > 0 && dof > 0) {
-              f_test_prob = TMath::Prob(f_stat, dof);
-            } else {
-              f_test_prob = 1.0; // No improvement
-            }
-            
-            // CMS standard: p^F < 0.05 for F-test to pass
-            significant_improvement = (f_test_prob < 0.05);
-            std::cout << "[INFO] F-test: Order " << order << ", F-stat=" << f_stat << ", dof=" << dof 
-                     << ", p^F=" << f_test_prob << ", passes=" << significant_improvement << std::endl;
-          }
-          
-          if (!significant_improvement && order > 1) {
-            std::cout << "[INFO] F-test failed (p^F=" << f_test_prob << " >= 0.05), stopping at order " << prev_order << std::endl;
-            break; // Stop the loop
-          }
-          
-          // Update for next iteration  
-          prev_nll_corr = current_nll_corr;
-          prev_nparams = nparams;
-          
-          // Update for next iteration  
-          prev_nll_corr = current_nll_corr;
-          prev_nparams = nparams;
-          double gofProb=0;
-          plot(mass,bkgPdf,data,Form("%s/ftest_%s%d_%s",outDir.c_str(),funcType->c_str(),order,catname.c_str()),flashggCats_,fitStatus,&gofProb,chi2FromFit,true,true,dataWS);
-          if (includeZ && dataWS) {
-            RooAbsPdf *zModel = dataWS->pdf(gZModelName.c_str());
-            if (zModel) {
-              plotComponents(mass,bkgPdf,zModel,data,Form("%s/ftest_%s%d_%s",outDir.c_str(),funcType->c_str(),order,catname.c_str()),flashggCats_,fitStatus,&gofProb,chi2FromFit,blindSignalRegion);
-            }
-          }
-          cout << "[INFO] function type, order, NLL, f_test_prob" << endl;
-          cout << "[INFO] " << *funcType << " " << order << " " << current_nll_corr << " " << f_test_prob << endl;
-          prevNll=thisNll;
-          cache_order=prev_order;
-          cache_pdf=prev_pdf;
-          prev_order=order;
-          prev_pdf=bkgPdf;
-          
-          // Ensure we always have at least one valid cache_pdf
-          if (cache_pdf == NULL && bkgPdf != NULL) {
-            cache_pdf = bkgPdf;
-            cache_order = order;
-            cout << "[DEBUG] Setting cache_pdf to current bkgPdf for order " << order << endl;
-          }
-          order++;
-          if (order > gMaxFtestOrder) {
-            cout << "[INFO] Reached maximum F-test order limit (" << gMaxFtestOrder << "), stopping F-test" << endl;
-            break;
-          }
-        }
-        counter++;
+
+      RooAbsPdf* best_pdf = nullptr;
+      int best_order = 0;
+      double best_score = 1e300;
+      
+      for (int order=1; order<=gMaxFtestOrder; ++order) {
+	RooAbsPdf *bkgPdf = createBackgroundWithTurnOn(pdfsModel,*funcType,order,mass,Form("ftest_pdf_%d_%s_%s%d",(cat+catOffset),ext.c_str(), funcType->c_str(), order), currentIncludeTurnOn, dataWS, turnOnType);
+	
+	if(!bkgPdf) continue;
+	
+	int fitStatus = 0;
+	FitQuality fq;
+	double thisNll = 0.0;
+	runFit(mass, bkgPdf, data, &thisNll, &fitStatus, 7, &fq);
+	
+	if (fitStatus!=0 || !std::isfinite(thisNll)) continue;
+	
+	const int nfloat = countFloatingParams(bkgPdf, data);
+	const double score = 2.0*thisNll + nfloat;
+	double gofP = -1;
+	plot(mass, bkgPdf, data,
+	     Form("%s/FTestFunctions/ftest_%s%d_%s", outDir.c_str(), funcType->c_str(), order, catname.c_str()),
+	     flashggCats_, fitStatus, &gofP, fq, true, dataWS);
+	
+	std::cout << "[TRUTH] " << *funcType << " order=" << order
+		  << " NLL=" << thisNll
+		  << " nfloat=" << nfloat
+		  << " score(2NLL+nfloat)=" << score
+		  << " chi2/ndof=" << fq.chi2red
+		  << " gofP=" << gofP
+		  << "\n";
+	if (gofP > 1e-6 && score < best_score) {
+	  best_score = score;
+	  best_order = order;
+	  best_pdf   = bkgPdf;
+	}
       }
-    
+            
+      cache_order = best_order;
+      cache_pdf   = best_pdf;
+
       choices.insert(pair<string,int>(*funcType,cache_order));
       if (cache_pdf != NULL) {
         pdfs.insert(pair<string,RooAbsPdf*>(Form("%s%d",funcType->c_str(),cache_order),cache_pdf));
@@ -1977,6 +1484,7 @@ int main(int argc, char* argv[]){
         std::cout << "[WARNING] cache_pdf is NULL for " << *funcType << ", skipping truth plot entry" << std::endl;
       }
       int truthOrder = cache_order;
+      std::cout << "--------------------------------------------------------------------------------------------------" << std::endl;
       std::cout << "===> F-TEST and GOF for ENVELOPE determination" << std::endl;
       if (saveMultiPdf){
         chi2=0.;
@@ -1990,166 +1498,214 @@ int main(int argc, char* argv[]){
         // 1. Maximum order: highest order with p^F < 0.1
         // 2. Lower orders: p^F < 0.1 AND GoF > 0.01
         
+	std::cout << "--------------------------------------------------------------------------------------------------" << std::endl;
         std::cout << "[INFO] CMS Envelope Selection: Max order with p^F < 0.1, lower orders with p^F < 0.1 AND GoF > 0.01" <<std::endl;
-        
-        double prev_nll_env = 0.0;
-        int prev_nparams_env = 0;
+
+	double prev_nll_env   = 0.0;
+	int    prev_nfloat_env = 0;
+	bool   have_prev = false;   // we only compare after we have a valid previous fit	
         int max_valid_order = 0;
         double final_f_test_prob = 1.0;
         double final_gofProb = 0.0;
-        
-        while (order <= gMaxEnvelopeOrder){
-          std::cout << "[DEBUG-ENV] Top of loop: funcType=" << *funcType << " order=" << order << " gMaxEnvelopeOrder=" << gMaxEnvelopeOrder << std::endl;
-          cout << "==> " << *funcType << " " << order << endl;
-          RooAbsPdf *bkgPdf = createBackgroundWithTurnOn(pdfsModel,*funcType,order,mass,Form("env_pdf_%d_%s",(cat+catOffset),ext.c_str()), currentIncludeTurnOn, includeZ, dataWS, turnOnType);
-          std::cout << "[DEBUG-ENV] After createBackgroundWithTurnOn: bkgPdf=" << (void*)bkgPdf << std::endl;
-          if (bkgPdf && bkgPdf->InheritsFrom("RooAddPdf")) {
-            RooArgSet normSet(*mass);
-            ((RooAddPdf*)bkgPdf)->fixCoefNormalization(normSet);
-          }
-          if (!bkgPdf ){
-            if (order > gMaxEnvelopeOrder) { std::cout << " [WARNING] could not add, order limit reached (max: " << gMaxEnvelopeOrder << ") ] " << std::endl; break ;}
-            order++;
-            continue; // Skip to next iteration if PDF creation failed
-          }
-          else {
-            int fitStatus=0;
-            double chi2FromFit = -1;
-            runFit(bkgPdf,data,&thisNll,&fitStatus,/*max iterations*/7,&chi2FromFit,blindSignalRegion);
-            if (fitStatus!=0) std::cout << "[WARNING] Warning -- Fit status for " << bkgPdf->GetName() << " at " << fitStatus <<std::endl;
-            
-            // Calculate F-test probability and GoF
-            double f_test_prob = 1.0;
-            int nparams_env = (bkgPdf) ? bkgPdf->getVariables()->getSize() : order;
-            
-            if (order == 1) {
-              f_test_prob = 0.0; // First order automatically passes F-test
-              prev_nll_env = thisNll;
-              prev_nparams_env = nparams_env;
-            } else {
-              // F-test: 2*(NLL_prev - NLL_current) ~ chi2 with dof = nparams_current - nparams_prev
-              double f_stat = 2.0 * (prev_nll_env - thisNll);
-              int dof = nparams_env - prev_nparams_env;
-              
-              if (f_stat > 0 && dof > 0) {
-                f_test_prob = TMath::Prob(f_stat, dof);
-              } else {
-                f_test_prob = 1.0; // No improvement
-              }
-              
-              prev_nll_env = thisNll;
-              prev_nparams_env = nparams_env;
-            }
-            
-            double gofProb = 0.0; 
-            plot(mass,bkgPdf,data,Form("%s/EnvelopeComponents_Pulls/envelope_%s%d_%s",outDir.c_str(),funcType->c_str(),order,catname.c_str()),flashggCats_,fitStatus,&gofProb,chi2FromFit,blindSignalRegion,true,dataWS);
-            if (includeZ && dataWS) {
-              RooAbsPdf *zModel = dataWS->pdf(gZModelName.c_str());
-              if (zModel) {
-                plotComponents(mass,bkgPdf,zModel,data,Form("%s/EnvelopeComponents_Pulls/envelope_%s%d_%s",outDir.c_str(),funcType->c_str(),order,catname.c_str()),flashggCats_,fitStatus,&gofProb,chi2FromFit,blindSignalRegion);
-              }
-            }
-            
-            cout << "[INFO] function type, order, NLL, p^F, GoF " << endl;
-            cout << "[INFO] " << *funcType << " " << order << " " << thisNll << " " << f_test_prob << " " << gofProb << endl;
-            
-            // CMS envelope criteria
-            bool passes_f_test = (f_test_prob < upperEnvThreshold);
-            bool passes_gof = (gofProb > minGofThreshold);
-            bool include_in_envelope = false;
-            
-            if (passes_f_test) {
-              max_valid_order = order; // Update maximum valid order
-              final_f_test_prob = f_test_prob; // Store for output
-              final_gofProb = gofProb; // Store for output
-              if (order == 1 || passes_gof) {
-                include_in_envelope = true;
-                std::cout << "[INFO] Including order " << order << " in envelope (p^F=" << f_test_prob 
-                         << ", GoF=" << gofProb << ")" << std::endl;
-              } else {
-                std::cout << "[INFO] Order " << order << " passes F-test (p^F=" << f_test_prob 
-                         << ") but fails GoF (" << gofProb << " <= 0.01), excluding" << std::endl;
-              }
-            } else {
-              std::cout << "[INFO] Order " << order << " fails F-test (p^F=" << f_test_prob 
-                       << " >= 0.1), stopping envelope construction" << std::endl;
-              break; // Stop when F-test fails
-            }
-            
-            if (include_in_envelope) {
-              // Check parameter stability before adding to envelope
-                  bool parametersStable = true;
-                  double maxRelativeError = 0.0;
-                  string familyName = *funcType;
-                  
-                  if (bkgPdf) {
-                    RooArgSet* params = bkgPdf->getParameters(*data);
-                    TIterator* iter = params->createIterator();
-                    RooRealVar* param;
-                    while ((param = (RooRealVar*)iter->Next())) {
-                      if (!param->isConstant() && param->hasError()) {
-                        double relError = (param->getVal() != 0) ? fabs(param->getError() / param->getVal()) : 999.0;
-                        maxRelativeError = max(maxRelativeError, relError);
-                        
-                        // Check if parameter is at boundary or has huge error
-                        bool atBoundary = (fabs(param->getVal() - param->getMin()) < 1e-6) || 
-                                        (fabs(param->getVal() - param->getMax()) < 1e-6);
-                        bool hugeError = (param->getError() > 50.0) || (relError > 50.0);
-                        
-                        if (atBoundary || hugeError) {
-                          std::cout << "[WARNING] Parameter " << param->GetName() 
-                                   << " potentially unstable: value=" << param->getVal() 
-                                   << ", error=" << param->getError()
-                                   << ", relError=" << relError 
-                                   << ", atBoundary=" << atBoundary << std::endl;
-                          if (hugeError) parametersStable = false;
-                        }
-                      }
-                    }
-                    delete iter;
-                    delete params;
-                  }
-                  
-                  //if (parametersStable && gofProb > minGofThreshold) {
-		  if (parametersStable) {
-                    double myNll = 2.*thisNll;
-                    std::cout << "[INFO] Adding to Envelope " << bkgPdf->GetName() << " p^F=" << f_test_prob 
-                      << " GoF=" << gofProb << " 2xNLL + c is " << myNll + nparams_env <<  std::endl;
-                    
-                    allPdfs.insert(pair<string,RooAbsPdf*>(Form("%s%d",funcType->c_str(),order),bkgPdf));
-                    storedPdfs.add(*bkgPdf);
-                    pdforders.push_back(order);
-                    
-                    // Track the best function overall for later reference
-                    if ((myNll + nparams_env) < MinimimNLLSoFar) {
-                      simplebestFitPdfIndex = storedPdfs.getSize()-1;
-                      MinimimNLLSoFar = myNll + nparams_env;
-                    }
-                    
-                    // Update family tracking (keep the best one for each family for backward compatibility)
-                    double current_penalty = myNll + nparams_env;
-                    if (familyBestAIC.find(familyName) == familyBestAIC.end() || current_penalty < familyBestAIC[familyName]) {
-                      familyBestAIC[familyName] = current_penalty;
-                      familyBestPdf[familyName] = bkgPdf;
-                      familyMinOrder[familyName] = order;
-                    }
-                  } else {
-                    std::cout << "[INFO] Skipping " << familyName << " order " << order << " for envelope due to parameter instability" << std::endl;
-                  }
-            }
-            
-            cache_order=prev_order;
-            cache_pdf=prev_pdf;
-            prev_order=order;
-            prev_pdf=bkgPdf;
-            order++;
-            
-            if (order > gMaxEnvelopeOrder) {
-              cout << "[INFO] Reached maximum envelope order limit (" << gMaxEnvelopeOrder << "), stopping envelope building" << endl;
-              break;
-            }
-          }
-        }
+
+	// Track how many orders we kept for THIS family
+	int keptThisFamily = 0;
+	
+	while (order <= gMaxEnvelopeOrder) {
+	  
+	  std::cout << "[DEBUG-ENV] Top of loop: funcType=" << *funcType
+		    << " order=" << order
+		    << " gMaxEnvelopeOrder=" << gMaxEnvelopeOrder
+		    << " keptFamily=" << keptThisFamily
+		    << " keptTotalCat=" << totalEnvelopeKeptThisCat
+		    << std::endl;
+	  
+	  if (totalEnvelopeKeptThisCat >= maxTotalEnvelope) {
+	    std::cout << "[INFO] Reached maxTotalEnvelope=" << maxTotalEnvelope
+		      << " for this category, stopping envelope building for remaining families." << std::endl;
+	    break;
+	  }
+	  
+	  if (keptThisFamily >= maxPerFamily) {
+	    std::cout << "[INFO] Reached maxPerFamily=" << maxPerFamily
+		      << " for family " << *funcType << ", stopping this family." << std::endl;
+	    break;
+	  }
+	  
+	  RooAbsPdf *bkgPdf = createBackgroundWithTurnOn(
+							 pdfsModel, *funcType, order, mass,
+							 Form("ftest_pdf_%d_%s_%s%d", (cat+catOffset), ext.c_str(), funcType->c_str(), order),
+							 currentIncludeTurnOn, dataWS, turnOnType
+							 );
+	  
+	  if (!bkgPdf) {
+	    std::cout << "[WARNING] Could not create PDF for " << *funcType << " order " << order
+		      << ", skipping." << std::endl;
+	    order++;
+	    continue;
+	  }
+	  
+	  if (bkgPdf->InheritsFrom("RooAddPdf")) {
+	    RooArgSet normSet(*mass);
+	    ((RooAddPdf*)bkgPdf)->fixCoefNormalization(normSet);
+	  }
+	  
+	  // Fit
+	  int fitStatus = 0;
+	  FitQuality fq;
+	  runFit(mass, bkgPdf, data, &thisNll, &fitStatus, 7, &fq);
+	  
+	  if (fitStatus != 0 || !std::isfinite(thisNll)) {
+	    std::cout << "[WARNING] Fit failed for " << bkgPdf->GetName()
+		      << " status=" << fitStatus << " skipping this order" << std::endl;
+	    order++;
+	    continue;
+	  }
+	  
+	  // Floating parameter count
+	  const int nfloat_env = countFloatingParams(bkgPdf, data);
+	  
+	  // ---- F-test vs previous VALID order (correct bookkeeping)
+	  double f_test_prob = 0.0;  // order=first valid: auto-accept
+	  int dof = 0;
+	  double f_stat = 0.0;
+	  
+	  if (!have_prev) {
+	    have_prev = true;
+	  } else {
+	    f_stat = 2.0 * (prev_nll_env - thisNll);
+	    dof    = nfloat_env - prev_nfloat_env;
+	    f_test_prob = (f_stat > 0.0 && dof > 0) ? TMath::Prob(f_stat, dof) : 1.0;
+	  }
+	  
+	  std::cout << "[DEBUG-ENV] order=" << order
+		    << " nll=" << thisNll
+		    << " nfloat=" << nfloat_env
+		    << " prev_nfloat=" << prev_nfloat_env
+		    << " dof=" << dof
+		    << " fstat=" << f_stat
+		    << " f_test_prob=" << f_test_prob
+		    << " chi2red=" << fq.chi2red
+		    << std::endl;
+	  
+	  // Update "previous" only once, AFTER computing the F-test
+	  prev_nll_env    = thisNll;
+	  prev_nfloat_env = nfloat_env;
+	  
+	  // Plot (and also compute chi2/p shown in plot header)
+	  double gofProb_dummy = -1; // no longer used for selection
+	  plot(mass, bkgPdf, data,
+	       Form("%s/EnvelopeComponents_Pulls/envelope_%s%d_%s",
+		    outDir.c_str(), funcType->c_str(), order, catnameDijet.c_str()),
+	       flashggCats_, fitStatus, &gofProb_dummy, fq, true, dataWS);
+	  
+	  // ---- Selection: replace GoF(p) with chi2red cut
+	  const bool passes_f_test = (!have_prev /*never true here*/ ? true : (f_test_prob < upperEnvThreshold));
+	  const bool passes_chi2   = (fq.chi2red > 0.0 && fq.ndof > 0 && fq.chi2red < maxChi2red);
+	  
+	  // CMS-like stop condition: if improvement no longer significant, stop increasing order
+	  // (only after we have a previous to compare)
+	  if (have_prev && dof > 0 && !passes_f_test) {
+	    std::cout << "[INFO] Order " << order << " fails F-test (p^F=" << f_test_prob
+		      << " >= " << upperEnvThreshold << "), stopping this family." << std::endl;
+	    break;
+	  }
+	  
+	  // Decide inclusion
+	  bool include_in_envelope = false;
+	  if (!have_prev /*not possible*/ || order == 1) {
+	    // keep order 1 if chi2 is sane
+	    include_in_envelope = passes_chi2;
+	  } else {
+	    // for higher orders: require significant improvement + sane chi2
+	    include_in_envelope = passes_f_test && passes_chi2;
+	  }
+	  
+	  if (!passes_chi2) {
+	    std::cout << "[INFO] Excluding " << *funcType << " order " << order
+		      << " due to chi2/ndof=" << fq.chi2red
+		      << " (cut < " << maxChi2red << ")" << std::endl;
+	  }
+	  
+	  if (include_in_envelope) {
+	    
+	    // Parameter stability check (your existing logic; kept)
+	    bool parametersStable = true;
+	    
+	    RooArgSet* params = bkgPdf->getParameters(*data);
+	    std::unique_ptr<TIterator> iter(params->createIterator());
+	    RooRealVar* param = nullptr;
+	    
+	    while ((param = (RooRealVar*)iter->Next())) {
+	      if (!param->isConstant() && param->hasError()) {
+		double relError = (param->getVal() != 0.0)
+		  ? std::fabs(param->getError() / param->getVal())
+		  : 999.0;
+		
+		bool atBoundary = (std::fabs(param->getVal() - param->getMin()) < 1e-6) ||
+		  (std::fabs(param->getVal() - param->getMax()) < 1e-6);
+		
+		bool hugeError = (param->getError() > 50.0) || (relError > 50.0);
+		
+		if (atBoundary || hugeError) {
+		  std::cout << "[WARNING] Parameter " << param->GetName()
+			    << " potentially unstable: value=" << param->getVal()
+			    << " error=" << param->getError()
+			    << " relError=" << relError
+			    << " atBoundary=" << atBoundary
+			    << std::endl;
+		  if (hugeError) parametersStable = false;
+		}
+	      }
+	    }
+	    delete params;
+	    
+	    if (parametersStable) {
+	      // Keep it
+	      const double myNll = 2.0 * thisNll;
+	      std::cout << "[INFO] Adding to Envelope " << bkgPdf->GetName()
+			<< " p^F=" << f_test_prob
+			<< " chi2red=" << fq.chi2red
+			<< " score(2NLL+nfloat)=" << (myNll + nfloat_env)
+			<< std::endl;
+	      
+	      // Store ALL passing (family,order)
+	      allPdfs.insert({Form("%s%d", funcType->c_str(), order), bkgPdf});
+	      storedPdfs.add(*bkgPdf);
+	      pdforders.push_back(order);
+	      
+	      keptThisFamily++;
+	      totalEnvelopeKeptThisCat++;
+	      
+	      // Track "best overall" for reference / highlighting if you still use it
+	      if ((myNll + nfloat_env) < MinimimNLLSoFar) {
+		simplebestFitPdfIndex = storedPdfs.getSize() - 1;
+		MinimimNLLSoFar = myNll + nfloat_env;
+	      }
+	      
+	      // Keep per-family best (optional backward compatibility)
+	      const string familyName = *funcType;
+	      const double current_penalty = myNll + nfloat_env;
+	      if (familyBestAIC.find(familyName) == familyBestAIC.end() || current_penalty < familyBestAIC[familyName]) {
+		familyBestAIC[familyName] = current_penalty;
+		familyBestPdf[familyName] = bkgPdf;
+		familyMinOrder[familyName] = order;
+	      }
+	      
+	      // bookkeeping for report
+	      max_valid_order = order;
+	      final_f_test_prob = f_test_prob;
+	      final_gofProb = -1.0; // no longer meaningful for selection
+	      
+	    } else {
+	      std::cout << "[INFO] Skipping " << *funcType << " order " << order
+			<< " due to parameter instability" << std::endl;
+	    }
+	  }
+	  
+	  order++;
+	}
+	
         fprintf(resFile,"%15s & %d & %5.3f & %5.3f \\\n",funcType->c_str(),max_valid_order,final_f_test_prob,final_gofProb);
         choices_envelope.insert(pair<string,std::vector<int> >(*funcType,pdforders));
       }
@@ -2159,24 +1715,29 @@ int main(int argc, char* argv[]){
     choices_vec.push_back(choices);
     choices_envelope_vec.push_back(choices_envelope);
     pdfs_vec.push_back(pdfs);
-    plot(mass,pdfs,data,Form("%s/truths_%s",outDir.c_str(),catname.c_str()),flashggCats_,cat,false);
+    plot(mass,pdfs,data,Form("%s/truths_%s",outDir.c_str(),catnameDijet.c_str()),flashggCats_,cat,catnameDijet,false);
 
     // Plot envelope-only functions (familyBestPdf contains one best function per family)
-    if (saveMultiPdf && !familyBestPdf.empty()){
-      plot(mass,familyBestPdf,data,Form("%s/EnvelopeComponents_Pulls/envelope_only_%s",outDir.c_str(),catname.c_str()),flashggCats_,cat,false);
-      std::cout << "[INFO] Generated envelope-only plot with " << familyBestPdf.size() << " functions" << std::endl;
+    if (saveMultiPdf && !allPdfs.empty()){
+      int bestEnvOnlyIdx = bestIndexInPdfMap(mass, allPdfs, data);
+      plot(mass, allPdfs, data,
+	   Form("%s/EnvelopeComponents_Pulls/envelope_only_%s", outDir.c_str(), catnameDijet.c_str()),
+	   flashggCats_, cat, catnameDijet, bestEnvOnlyIdx);
+      std::cout << "[INFO] Generated envelope-only plot with " << allPdfs.size() << " functions" << std::endl;
     }
+    
+    //if (saveMultiPdf && !familyBestPdf.empty()){
+    //  int bestEnvOnlyIdx = bestIndexInPdfMap(mass, familyBestPdf, data);
+    //  plot(mass,familyBestPdf,data,Form("%s/EnvelopeComponents_Pulls/envelope_only_%s",outDir.c_str(),catnameDijet.c_str()),flashggCats_,cat,catnameDijet,bestEnvOnlyIdx);
+    //  std::cout << "[INFO] Generated envelope-only plot with " << familyBestPdf.size() << " functions" << std::endl;
+    //}
 
     if (saveMultiPdf){
       string catindexname;
       string catname2;
-      if (isFlashgg_){
-        catindexname = Form("pdfindex_%s_%s",std::to_string(cat).c_str(),ext.c_str());
-        catname2 = Form("%s",std::to_string(cat).c_str());
-      } else {
-        catindexname = Form("pdfindex_%d_%s",(cat+catOffset),ext.c_str());
-        catname2 = Form("cat%d",(cat+catOffset));
-      }
+      catindexname = Form("pdfindex_%d_%s",(cat+catOffset),ext.c_str());
+      catname2 = Form("cat%d",(cat+catOffset));
+
       RooCategory catIndex(catindexname.c_str(),"c");
       
       // Build final PDF list using only one function per family
@@ -2191,83 +1752,24 @@ int main(int argc, char* argv[]){
         std::cout << "[INFO]   - " << p.first << " -> " << (p.second ? p.second->GetName() : "NULL") << std::endl;
       }
       std::cout << "[INFO] =======================================================" << std::endl;
+
+      for (const auto& kv : allPdfs) {
+	const std::string& pdfKey = kv.first;   // e.g. Exponential3
+	RooAbsPdf* pdf = kv.second;
+	if (!pdf) continue;
+	
+	// Optional extra stability gate at final stage (keep consistent with envelope)
+	// If you want strict consistency, you can skip this.
+	// (Here: keep everything from envelope loop)
+	finalPdfs[pdfKey] = pdf;
+	finalStoredPdfs.add(*pdf);
+	
+	std::cout << "[INFO] Adding to final MultiPdf: " << pdfKey
+		  << " (PDF: " << pdf->GetName() << ")" << std::endl;
+      }
       
-      for (const auto& truthPdf : familyBestPdf) {
-        string familyName = truthPdf.first;  // e.g., "Dijet"
-        RooAbsPdf* pdf = truthPdf.second;
-        
-        // Extract order from PDF name for better legend labeling
-        string pdfKey = familyName;  // Default to family name
-        if (pdf) {
-          string pdfName = pdf->GetName();
-          // Extract order from PDF name (e.g., "env_pdf_0_2016_13TeV_dijet4" -> "4")
-          // Map family names to their abbreviations in PDF names
-          string abbrev = "";
-          if (familyName == "Dijet") abbrev = "dijet";
-          else if (familyName == "Exponential") abbrev = "exp";
-          else if (familyName == "PowerLaw") abbrev = "pow";
-          else if (familyName == "Laurent") abbrev = "lau";
-          else if (familyName == "Chebychev") abbrev = "cheb";
-          else if (familyName == "Bernstein") abbrev = "bern";
-          else {
-            // Fallback: use lowercase of first 4 chars
-            abbrev = familyName.substr(0, std::min(4, (int)familyName.length()));
-            std::transform(abbrev.begin(), abbrev.end(), abbrev.begin(), ::tolower);
-          }
-          
-          // Find abbreviation in PDF name
-          size_t abbrevPos = pdfName.find(abbrev);
-          if (abbrevPos != std::string::npos) {
-            // Find digits immediately after abbreviation
-            size_t orderStart = abbrevPos + abbrev.length();
-            if (orderStart < pdfName.length() && isdigit(pdfName[orderStart])) {
-              string orderStr = "";
-              while (orderStart < pdfName.length() && isdigit(pdfName[orderStart])) {
-                orderStr += pdfName[orderStart];
-                orderStart++;
-              }
-              if (!orderStr.empty()) {
-                pdfKey = familyName + orderStr;  // e.g., "Dijet4", "Chebychev6"
-              }
-            }
-          }
-        }
-        
-        // Check parameter stability and normalization for final selection
-        double norm_check = 1.0; // Default to 1.0 if PDF is NULL
-        if (pdf) {
-          // Check parameter stability
-          RooArgSet* params = pdf->getParameters(*data);
-          TIterator* iter = params->createIterator();
-          RooRealVar* param;
-          while ((param = (RooRealVar*)iter->Next())) {
-            if (!param->isConstant() && param->hasError()) {
-              double relError = (param->getVal() != 0) ? fabs(param->getError() / param->getVal()) : 999.0;
-              
-              // Check if parameter is at boundary or has huge error
-              bool atBoundary = (fabs(param->getVal() - param->getMin()) < 1e-6) || 
-                              (fabs(param->getVal() - param->getMax()) < 1e-6);
-              bool hugeError = (param->getError() > 10.0) || (relError > 5.0);
-              
-              if (atBoundary || hugeError) {
-                std::cout << "[WARNING] Final check: Parameter " << param->GetName() 
-                         << " unstable: value=" << param->getVal() 
-                         << ", error=" << param->getError()
-                         << ", relError=" << relError 
-                         << ", atBoundary=" << atBoundary << std::endl;
-              }
-            }
-          }
-          delete iter;
-          delete params;
-        }
-        
-        // Add to final MultiPdf - RooFit handles all normalization automatically
-        finalPdfs[pdfKey] = pdf;
-        finalStoredPdfs.add(*pdf);
-        
-        std::cout << "[INFO] Adding to final MultiPdf (from envelope best): " << pdfKey 
-                 << " (PDF: " << pdf->GetName() << ")" << std::endl;
+      if (finalStoredPdfs.getSize() == 0) {
+	std::cout << "[ERROR] No PDFs found from envelope for category " << cat << "! Cannot create MultiPdf." << std::endl;
       }
       
       if (finalStoredPdfs.getSize() == 0) {
@@ -2292,20 +1794,10 @@ int main(int argc, char* argv[]){
       std::cout << "[DEBUG] Creating RooMultiPdf with " << finalStoredPdfs.getSize() << " PDFs..." << std::endl;
       RooMultiPdf *pdf = new RooMultiPdf(Form("CMS_hgg_%s_%s_bkgshape",catname2.c_str(),ext.c_str()),"all pdfs",catIndex,finalStoredPdfs);
       std::cout << "[DEBUG] RooMultiPdf created successfully, contains " << pdf->getNumPdfs() << " PDFs" << std::endl;
-      
-      // DON'T REFIT! Use the best function from envelope directly to preserve fitted parameters
-      int bestFitPdfIndex = 0; // Default to first function
-      
-      // Find which PDF corresponds to the best envelope function
-      // --------------------------------------------------------
-      for (int iPdf = 0; iPdf < finalStoredPdfs.getSize(); iPdf++) {
-        RooAbsPdf* currentPdf = (RooAbsPdf*)finalStoredPdfs.at(iPdf);
-        if (currentPdf) {
-          // For now, just use the first one - the envelope selection already chose the best
-          bestFitPdfIndex = iPdf;
-          break;
-        }
-      }
+
+      // Choose best PDF by actually fitting all candidates (same strategy used elsewhere)
+      // This sets catIndex to the best one and restores its parameters.
+      int bestFitPdfIndex = getBestFitFunction(mass, pdf, data, &catIndex, outputws, Form("bestfit_cat%d_%s",cat,ext.c_str()), false);
       
       catIndex.setIndex(bestFitPdfIndex);
       std::cout << "// ------------------------------------------------------------------------- //" <<std::endl; 
@@ -2320,11 +1812,11 @@ int main(int argc, char* argv[]){
       outputws->import(*pdf);
       outputws->import(catIndex);
       outputws->import(*data);
-      plot(mass,pdf,&catIndex,data,Form("%s/multipdf_cat%s",outDir.c_str(),catnameDijet.c_str()),flashggCats_,cat,bestFitPdfIndex);
 
       // Plot with correct names using finalPdfs
       // ---------------------------------------
-      plot(mass,finalPdfs,data,Form("%s/multipdf_cat%s",outDir.c_str(),catnameDijet.c_str()),flashggCats_,cat,bestFitPdfIndex,false);
+      //plot(mass,pdf,&catIndex,data,Form("%s/multipdf_cat%s",outDir.c_str(),catnameDijet.c_str()),flashggCats_,cat,bestFitPdfIndex);
+      plot(mass,finalPdfs,data,Form("%s/multipdf_cat%s",outDir.c_str(),catnameDijet.c_str()),flashggCats_,cat,catnameDijet,bestFitPdfIndex);
 
     } // End saveMultiPdf block
   }  // End category loop
