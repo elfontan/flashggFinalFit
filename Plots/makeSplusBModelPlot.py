@@ -45,9 +45,9 @@ def get_options():
   parser.add_option("--parameterMap", dest="parameterMap", default=None, help="Comma separated pairs of model parameters:values,...")
   parser.add_option("--ext", dest="ext", default='', help="Extension for saving")
   parser.add_option("--mass", dest="mass", default=None, help="Higgs mass")
-  parser.add_option("--xvar", dest="xvar", default="CMS_hgg_mass,m_{#gamma#gamma},GeV", help="X-variable: name,title,units")
+  parser.add_option("--xvar", dest="xvar", default="CMS_hgg_mass,m_{#gamma#gamma} [GeV],GeV", help="X-variable: name,title,units")
   parser.add_option("--nBins", dest="nBins", default=60, type='int', help="Number of bins")
-  parser.add_option("--pdfNBins", dest="pdfNBins", default=3200, type='int', help="Number of bins")
+  parser.add_option("--pdfNBins", dest="pdfNBins", default=2400, type='int', help="Number of bins")
   parser.add_option("--translateCats", dest="translateCats", default=None, help="JSON to store cat translations")
   parser.add_option("--translatePOIs", dest="translatePOIs", default=None, help="JSON to store poi translations")
   return parser.parse_args()
@@ -78,7 +78,7 @@ xvar = w.var(opt.xvar.split(",")[0])
 weight = ROOT.RooRealVar("weight","weight",0)
 xvar.SetTitle(opt.xvar.split(",")[1])
 xvar.setPlotLabel(opt.xvar.split(",")[1])
-xvar.setUnit(opt.xvar.split(",")[2])
+#xvar.setUnit(opt.xvar.split(",")[2])
 xvar_arglist, xvar_argset = ROOT.RooArgList(xvar), ROOT.RooArgSet(xvar)
 wxvar_arglist, wxvar_argset = ROOT.RooArgList(xvar,weight), ROOT.RooArgSet(xvar,weight)
 chan = w.cat("CMS_channel")
@@ -189,7 +189,8 @@ if opt.doBands:
     # Create dataframe
     df_bands = pd.DataFrame(columns=_columns)
     # Loop over toys file and add row for each toy dataset
-    toyFiles = glob.glob("./SplusBModels%s/toys/toy_*.root"%opt.ext)
+    toyFiles = glob.glob("./SplusBModels%s/toys/toy_*.root"%(opt.ext)) #EF
+    #toyFiles = glob.glob("./SplusBModels%s/toys/m%s/toy_*.root"%(opt.ext,opt.mass))
     if len(toyFiles) == 0:
       print "     * [ERROR] No toys files of form ./SplusBModels%s/toys/toy_*.root. Skipping bands"%opt.ext
       opt.doBands = False
@@ -311,6 +312,7 @@ for cidx in range(len(cats)):
   # Scale pdf histograms to match binning used
   xvar_range = int(xvar.getBinning().highBound()-xvar.getBinning().lowBound())
   if opt.nBins != xvar_range:
+    print("nvar range = ", xvar_range)
     print "    * scaling pdf histograms to match binning of data"
     for h_ipdf in [h_sbpdf,h_bpdf,h_spdf]:
       for h in h_ipdf.itervalues(): h.Scale(float(xvar_range)/opt.nBins)

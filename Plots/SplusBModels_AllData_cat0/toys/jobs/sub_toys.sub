@@ -1,0 +1,12 @@
+executable = sub_toys.sh
+arguments = $(ProcId)
+output                = /afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/StatisticalAnalysis/CMSSW_11_3_4/src/flashggFinalFit/Plots/SplusBModels_AllData_cat0/toys/jobs/sub_toys.$(ClusterId).$(ProcId).out
+error                 = /afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/StatisticalAnalysis/CMSSW_11_3_4/src/flashggFinalFit/Plots/SplusBModels_AllData_cat0/toys/jobs/sub_toys.$(ClusterId).$(ProcId).err
+log                   = /afs/cern.ch/work/e/elfontan/private/DiPhotonAnalysis/StatisticalAnalysis/CMSSW_11_3_4/src/flashggFinalFit/Plots/SplusBModels_AllData_cat0/toys/jobs/sub_toys.$(ClusterId).log
+
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+periodic_release =  (NumJobStarts < 3) && ((CurrentTime - EnteredCurrentStatus) > 600)
+
+requirements = (TARGET.OpSysAndVer =?= "AlmaLinux9")
++JobFlavour = "microcentury"
+queue 500

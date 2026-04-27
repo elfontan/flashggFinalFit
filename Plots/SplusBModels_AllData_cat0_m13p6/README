@@ -1,0 +1,8 @@
+cp ../../../Combine/cards/AllData/sliding_13.6GeV_cat0.txt .
+text2workspace.py sliding_13.6GeV_cat0.txt 
+
+combine sliding_13.6GeV_cat0.root -m 13.600 -M MultiDimFit -P r --floatOtherPOIs=1 --freezeParameters MH --saveWorkspace  -n _initialSnapshot --cminDefaultMinimizerStrategy 0 --X-rtd MINIMIZER_freezeDisassociatedParams --X-rtd MINIMIZER_multiMin_hideConstants --X-rtd MINIMIZER_multiMin_maskConstraints --X-rtd MINIMIZER_multiMin_maskChannels=2
+
+python makeToys.py  --inputWSFile SplusBModels_AllData_cat0_m13p6/higgsCombine_initialSnapshot.MultiDimFit.mH13.6.root --loadSnapshot MultiDimFit --ext _AllData_cat0_m13p6 --nToys 500 --dryRun --batch condor
+
+python makeSplusBModelPlot.py --inputWSFile SplusBModels_AllData_cat0_m13p6/higgsCombine_initialSnapshot.MultiDimFit.mH13.6.root --loadSnapshot MultiDimFit --cats all --ext _AllData_cat0_m13p6 --mass 13.6 --unblind  --nBins 70  --doZeroes --doBands
